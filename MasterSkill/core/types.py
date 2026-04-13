@@ -153,6 +153,8 @@ class TaskContext:
     model_attempt_result: Optional[str] = None
     failure_reason: Optional[str] = None
     problem_type: Optional[ProblemType] = None
+    domain: str = ""          # e.g., "mathematical_reasoning", "code_generation"
+    problem_modeling: str = ""  # e.g., "multi_step_deduction", "search_retrieval"
     # Fixed paths for skill execution
     output_path: str = "/root/output.json"
     execution_log_path: str = "/tmp/execution.log"
@@ -172,7 +174,10 @@ class ResearchOutput:
 
 @dataclass
 class Config:
-    """System configuration."""
+    """System configuration.
+
+    Models are loaded from agent_config.py - see model_xxx fields below.
+    """
     # Paths
     skillsbench_root: str = "/home/yuchong/skillsbench"
     data_root: str = ""
@@ -183,13 +188,15 @@ class Config:
     max_research_triggers_same_judger: int = 3
     max_task_experience_entries: int = 2
 
-    # Models per agent type
-    model_searcher: str = "gpt-4o"
-    model_analyzer: str = "gpt-4o"
-    model_critic: str = "gpt-4o"
-    model_skill_creator: str = "claude-sonnet-4-6"
-    model_quick_proposer: str = "gpt-4o-mini"
-    model_judger: str = "gpt-4o"
+    # Models per agent type (loaded from agent_config)
+    # Override individual agents via kwargs if needed
+    model_searcher: str = "from_agent_config"
+    model_analyzer: str = "from_agent_config"
+    model_critic: str = "from_agent_config"
+    model_skill_creator: str = "from_agent_config"
+    model_quick_proposer: str = "from_agent_config"
+    model_judger: str = "from_agent_config"
+    model_reflector: str = "from_agent_config"
 
     # API
     openai_api_key: str = ""

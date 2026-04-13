@@ -11,10 +11,12 @@ from ..core.types import (
     ProblemType, EffectiveMethod, IneffectiveMethod,
 )
 from ..memory import ShallowMemory, TaskExperienceMemory, MetaMemoryStore
-from ..agents import Searcher, Analyzer, Critic
+from ..memory_manager import MemoryManager, AgentRole
+from ..agents import Searcher, Analyzer, Critic, Reflector
 from ..skill import SkillRepository, SkillCreator
 from ..judge import Judger
 from ..proposer import QuickProposer
+from ..task_analyzer import TaskAnalyzer
 from .docker_executor import DockerExecutor
 
 
@@ -45,13 +47,29 @@ class BenchmarkRunner:
         self.task_memory = TaskExperienceMemory(f"{data_dir}/task_experience")
         self.meta_memory = MetaMemoryStore(f"{data_dir}/meta")
 
-        # Initialize agents
-        self.searcher = Searcher(config.model_searcher)
-        self.analyzer = Analyzer(config.model_analyzer)
-        self.critic = Critic(config.model_critic)
-        self.skill_creator = SkillCreator(config.model_skill_creator)
-        self.judger = Judger(config.model_judger)
-        self.quick_proposer = QuickProposer(config.model_quick_proposer)
+        # Memory manager with permission control
+        self.memory = MemoryManager(data_dir)
+
+        # Task analyzer for extracting domain/modeling
+        self.task_analyzer = TaskAnalyzer()
+
+        # Initialize agents from agent_config
+        from ..agent_config import get_agent_params
+        searcher_cfg = get_agent_params("searcher")
+        analyzer_cfg = get_agent_params("analyzer")
+        critic_cfg = get_agent_params("critic")
+        skill_creator_cfg = get_agent_params("skill_creator")
+        quick_proposer_cfg = get_agent_params("quick_proposer")
+        judger_cfg = get_agent_params("judger")
+        reflector_cfg = get_agent_params("reflector")
+
+        self.searcher = Searcher(searcher_cfg["model"])
+        self.analyzer = Analyzer(analyzer_cfg["model"])
+        self.critic = Critic(critic_cfg["model"])
+        self.skill_creator = SkillCreator(skill_creator_cfg["model"])
+        self.judger = Judger(judger_cfg["model"])
+        self.quick_proposer = QuickProposer(quick_proposer_cfg["model"])
+        self.reflector = Reflector(reflector_cfg["model"])
 
         # Skill repository (SkillsBench format)
         self.skill_repo = SkillRepository(config.skillsbench_root)
@@ -115,6 +133,10 @@ class BenchmarkRunner:
         current_skill: Optional[SkillBundle] = None
         current_judger_criteria: Optional[dict] = None
 
+        # Track history for reflection
+        judger_feedback_history: list[dict] = []
+        skill_summary_history: list[str] = []
+
         # Step 2: Try existing skills (试探性复用)
         existing_skills = self._find_reusable_skills(context)
         if existing_skills:
@@ -169,6 +191,12 @@ class BenchmarkRunner:
                 judger_failures = 0
 
                 while quick_proposer_iterations < self.config.max_quick_proposer_iterations:
+                    # Track feedback
+                    judger_feedback_history.append(judger_result.to_dict())
+                    skill_summary_history.append(
+                        f"Skill: {current_skill.name}, iterations: {quick_proposer_iterations}"
+                    )
+
                     # Quick Proposer fix
                     current_skill = self.quick_proposer.propose_fix(
                         current_skill,
@@ -182,6 +210,7 @@ class BenchmarkRunner:
 
                     if judger_result.pass:
                         # Break to real test
+                        judger_feedback_history.append(judger_result.to_dict())
                         break
                     else:
                         judger_failures += 1
@@ -193,7 +222,21 @@ class BenchmarkRunner:
 
                     if judger_research_triggers >= self.config.max_research_triggers_same_judger:
                         # Need to reflect on Judger
-                        self._reflect_on_judger(context, current_judger_criteria)
+                        reflection_result = self._reflect_on_judger(
+                            context=context,
+                            judger_criteria=current_judger_criteria,
+                            skill_summaries=skill_summary_history,
+                            feedbacks=judger_feedback_history,
+                            trigger_count=judger_research_triggers,
+                        )
+                        # If reflection suggests Judger is wrong, adjust criteria
+                        if reflection_result.get("diagnosis") == "judger_too_strict":
+                            # Rebuild criteria with looser standards
+                            current_judger_criteria = self.judger.build_judger_criteria(
+                                task_id, context.instruction_md[:200],
+                                context.instruction_md,
+                                judger_feedback_history[-3:] if judger_feedback_history else []
+                            )
                         judger_research_triggers = 0
 
                     # Research new approach
@@ -220,15 +263,28 @@ class BenchmarkRunner:
         }
 
     def _load_task_context(self, task_id: str) -> Optional[TaskContext]:
-        """Load task context from SkillsBench."""
+        """Load task context from SkillsBench and analyze it."""
         task_dir = Path(self.config.skillsbench_root) / "tasks" / task_id
         if not task_dir.exists():
             return None
 
         instruction_md = (task_dir / "instruction.md").read_text()
-        task_toml = {}  # TODO: Parse properly
+
+        # Load task.toml
+        task_toml = {}
+        toml_path = task_dir / "task.toml"
+        if toml_path.exists():
+            try:
+                import tomllib
+                task_toml = tomllib.loads(toml_path.read_text())
+            except Exception:
+                pass
+
         tests_dir = str(task_dir / "tests")
         environment_dir = str(task_dir / "environment")
+
+        # Analyze task to extract problem_type, domain, modeling
+        analysis = self.task_analyzer.analyze(task_id, instruction_md, task_toml)
 
         return TaskContext(
             task_id=task_id,
@@ -238,6 +294,9 @@ class BenchmarkRunner:
             environment_dir=environment_dir,
             output_path="/root/output.json",
             execution_log_path="/tmp/execution.log",
+            problem_type=analysis["problem_type"],
+            domain=analysis["domain"],
+            problem_modeling=analysis["problem_modeling"],
         )
 
     def _list_unsolved_tasks(self) -> list[str]:
@@ -248,14 +307,55 @@ class BenchmarkRunner:
         return [t for t in all_tasks if t not in solved]
 
     def _find_reusable_skills(self, context: TaskContext) -> list[SkillBundle]:
-        """Find potentially reusable skills from meta memory."""
-        # TODO: Implement based on problem_type, domain, modeling match
-        return []
+        """Find potentially reusable skills from meta memory.
+
+        Reuse condition: problem_type + domain + modeling all match or highly overlap.
+        This is called when a new task fails and we want to try existing skills first.
+        """
+        if not context.problem_type:
+            return []
+
+        # Query meta memory for transferable skills
+        transferable = self.meta_memory.get_transferable_skills(
+            problem_type=context.problem_type,
+            domain=context.domain or "general",
+            modeling=context.problem_modeling or "direct_solution",
+            min_transferability="medium",
+        )
+
+        skills = []
+        for method in transferable:
+            # Load the actual skill from shallow memory
+            skill = self.shallow_memory.get_skill(method.method_id)
+            if skill:
+                skills.append(skill)
+
+        return skills
 
     def _try_skill(self, context: TaskContext, skill: SkillBundle) -> dict:
-        """Try an existing skill on a task."""
-        # TODO: Execute skill and check result
-        return {"passed": False}
+        """Try an existing skill on a task.
+
+        Returns:
+            {"passed": bool, "feedback": JudgerFeedback, "is_new": False}
+        """
+        # Execute skill with Judger evaluation
+        judger_result = self._evaluate_with_judger(context, skill)
+
+        if judger_result.pass:
+            # Try real test
+            real_result = self._run_real_test(context, skill)
+            return {
+                "passed": real_result.get("passed", False),
+                "feedback": judger_result,
+                "real_test_result": real_result,
+                "is_new": False,
+            }
+
+        return {
+            "passed": False,
+            "feedback": judger_result,
+            "is_new": False,
+        }
 
     def _research_new_skill(self, context: TaskContext) -> ResearchOutput:
         """Research team creates new skill."""
@@ -358,10 +458,38 @@ class BenchmarkRunner:
             "details": result["details"],
         }
 
-    def _reflect_on_judger(self, context: TaskContext, judger_criteria: Optional[dict]) -> None:
-        """Reflect on Judger when stuck."""
-        # TODO: Let agent self-reflect and adjust Judger criteria
-        pass
+    def _reflect_on_judger(
+        self,
+        context: TaskContext,
+        judger_criteria: Optional[dict],
+        skill_summaries: list[str],
+        feedbacks: list[dict],
+        trigger_count: int,
+    ) -> dict:
+        """Reflect on Judger when stuck.
+
+        Called when same Judger has triggered Research 3x without any skill
+        reaching real test. Analyzes whether Judger is too strict.
+        """
+        # Use Reflector agent to analyze
+        result = self.reflector.run(
+            task_id=context.task_id,
+            judger_criteria=judger_criteria or {},
+            skill_summaries=skill_summaries,
+            feedbacks=feedbacks[-5:] if feedbacks else [],  # Last 5 feedbacks
+            trigger_count=trigger_count,
+        )
+
+        # Record reflection in meta memory if it suggests adjustment
+        if result.get("diagnosis") == "judger_too_strict":
+            self.meta_memory.add_success_factor(
+                problem_type=context.problem_type or ProblemType.TOOL,
+                domain=context.domain or "general",
+                modeling=context.problem_modeling or "direct_solution",
+                factor=f"Judger反思: {result.get('reasoning', '')} - 调整: {result.get('adjustments', [])}",
+            )
+
+        return result
 
     def _on_task_solved(self, task_id: str, context: TaskContext, skill: SkillBundle) -> None:
         """Handle successful task resolution."""
