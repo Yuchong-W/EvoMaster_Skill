@@ -15,6 +15,7 @@ from ..agents import Searcher, Analyzer, Critic
 from ..skill import SkillRepository, SkillCreator
 from ..judge import Judger
 from ..proposer import QuickProposer
+from .docker_executor import DockerExecutor
 
 
 class BenchmarkRunner:
@@ -54,6 +55,9 @@ class BenchmarkRunner:
 
         # Skill repository (SkillsBench format)
         self.skill_repo = SkillRepository(config.skillsbench_root)
+
+        # Docker executor for skill and real test
+        self.docker = DockerExecutor(config.skillsbench_root)
 
     def run_benchmark(self, task_ids: Optional[list[str]] = None) -> dict:
         """Run the full benchmark."""
@@ -201,10 +205,19 @@ class BenchmarkRunner:
         return TaskStatus.ABANDONED
 
     def _model_attempt(self, context: TaskContext) -> dict:
-        """Run model on task (placeholder - integrate with SkillsBench)."""
-        # TODO: Integrate with SkillsBench/Agent framework
-        # For now, simulate failure
-        return {"success": False, "error": "model could not solve autonomously"}
+        """Run model on task without skill (initial attempt)."""
+        # Run the task without any skill to see if model can solve it
+        result = self.docker.run_task(
+            task_id=context.task_id,
+            instruction=context.instruction_md,
+            output_path=context.output_path,
+        )
+
+        return {
+            "success": result.get("passed", False),
+            "error": result.get("error", ""),
+            "output": result.get("output", ""),
+        }
 
     def _load_task_context(self, task_id: str) -> Optional[TaskContext]:
         """Load task context from SkillsBench."""
@@ -223,6 +236,8 @@ class BenchmarkRunner:
             task_toml=task_toml,
             tests_dir=tests_dir,
             environment_dir=environment_dir,
+            output_path="/root/output.json",
+            execution_log_path="/tmp/execution.log",
         )
 
     def _list_unsolved_tasks(self) -> list[str]:
@@ -313,15 +328,35 @@ class BenchmarkRunner:
         )
 
     def _execute_skill(self, skill: SkillBundle, context: TaskContext) -> str:
-        """Execute skill and return result."""
-        # TODO: Integrate with SkillsBench execution
-        return "Skill executed (placeholder)"
+        """Execute skill in Docker and return terminal output."""
+        result = self.docker.execute_skill(
+            task_id=context.task_id,
+            skill=skill,
+            instruction=context.instruction_md,
+            output_path=context.output_path,
+        )
+
+        if result["success"]:
+            return result["execution_log"]
+        else:
+            return f"Error: {result['error']}\n{result['execution_log']}"
 
     def _run_real_test(self, context: TaskContext, skill: SkillBundle) -> dict:
-        """Run real test on SkillsBench."""
-        # TODO: Integrate with SkillsBench testing framework
-        # For now, return failure
-        return {"passed": False}
+        """Run real test using SkillsBench official test script."""
+        # First save skill to the task's skills directory
+        self.skill_repo.save_skill(context.task_id, skill)
+
+        # Run official test
+        result = self.docker.run_real_test(
+            task_id=context.task_id,
+            output_path=context.output_path,
+        )
+
+        return {
+            "passed": result["passed"],
+            "score": result["score"],
+            "details": result["details"],
+        }
 
     def _reflect_on_judger(self, context: TaskContext, judger_criteria: Optional[dict]) -> None:
         """Reflect on Judger when stuck."""

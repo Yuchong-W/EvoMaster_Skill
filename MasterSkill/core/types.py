@@ -153,6 +153,9 @@ class TaskContext:
     model_attempt_result: Optional[str] = None
     failure_reason: Optional[str] = None
     problem_type: Optional[ProblemType] = None
+    # Fixed paths for skill execution
+    output_path: str = "/root/output.json"
+    execution_log_path: str = "/tmp/execution.log"
 
 
 @dataclass
