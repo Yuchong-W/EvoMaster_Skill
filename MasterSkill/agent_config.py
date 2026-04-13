@@ -8,6 +8,7 @@ Usage:
 """
 
 AGENT_CONFIG = {
+    # Research Team Agents
     "searcher": {
         "model": "gpt-4o",
         "temperature": 0.7,
@@ -38,7 +39,7 @@ AGENT_CONFIG = {
         "max_tokens": 2048,
         "description": "Surface fixes - wording and details only",
     },
-    "judger": {
+    "judge": {
         "model": "gpt-4o",
         "temperature": 0.3,
         "max_tokens": 4096,
@@ -49,6 +50,14 @@ AGENT_CONFIG = {
         "temperature": 0.7,
         "max_tokens": 4096,
         "description": "Meta-reasoning - reflects on Judger strictness",
+    },
+
+    # Execution Agent (Claude Code CLI for running tasks)
+    "execution": {
+        "model": "claude-sonnet-4-6",
+        "cli_path": "/home/yuchong/.local/bin/claude",
+        "description": "Executes tasks in Docker using Claude Code CLI",
+        "timeout": 600,
     },
 }
 

@@ -254,31 +254,29 @@ class DockerExecutor:
                 "instruction.md", instruction
             ))
 
-            # TODO: Replace with actual model execution
-            # For now, just check if output file exists (model couldn't solve it)
-            exec_result = container.exec_run(
-                f"test -f {output_path} && cat {output_path} || echo 'NO_OUTPUT'",
-                socket=True,
-                stream=True,
+            # Run Claude Code CLI to attempt the task
+            result = self._run_model_attempt(
+                container,
+                output_path=output_path,
                 timeout=timeout,
             )
 
             output = b""
-            for chunk in exec_result.output:
+            for chunk in result.output:
                 output += chunk
 
             execution_log = output.decode("utf-8", errors="replace")
-            passed = "NO_OUTPUT" not in execution_log and exec_result.exit_code == 0
 
-            # Get output file content
+            # Check if output file was created
             output_content = self._get_file(container, output_path)
+            passed = output_content != "" and result.returncode == 0
 
             return {
                 "passed": passed,
                 "output": output_content,
                 "execution_log": execution_log,
                 "error": "" if passed else "Model could not solve autonomously",
-                "exit_code": exec_result.exit_code,
+                "exit_code": result.returncode,
             }
 
         finally:
@@ -304,29 +302,104 @@ class DockerExecutor:
         output_path: str,
         timeout: int,
     ) -> subprocess.CompletedProcess:
-        """Run the agent with skill in container."""
-        # This is a placeholder - actual implementation depends on
-        # what agent/framework is being used (Claude Code, etc.)
-        #
-        # The key is that the model should:
-        # 1. Read the SKILL.md file
-        # 2. Attempt the task using the skill
-        # 3. Write output to output_path
-        # 4. All terminal output is captured
+        """Run Claude Code CLI with skill in container.
 
-        # Placeholder command - needs to be customized based on agent
+        Uses Claude Code CLI --print mode to execute the task:
+        1. Read instruction.md
+        2. Read SKILL.md if available
+        3. Attempt to solve and write output to output_path
+        4. Capture all terminal output
+        """
+        from ..agent_config import get_agent_params
+
+        exec_cfg = get_agent_params("execution")
+        model = exec_cfg.get("model", "claude-sonnet-4-6")
+        cli_path = exec_cfg.get("cli_path", "claude")
+        timeout_sec = exec_cfg.get("timeout", 600)
+
+        # Build the prompt that tells Claude Code what to do
+        skill_note = f"If there's a skill guide at /root/.skills/{skill.skill_id}/SKILL.md, read it and use it." if skill else ""
+
+        prompt = f"""You are solving a task. Read the instruction and any available skill guide, then solve the task and write your output.
+
+First, read the instruction:
+```
+$(cat /root/instruction.md)
+```
+
+{skill_note}
+
+Your goal: Solve the task and write the final output to {output_path} as JSON.
+
+Write your output and ensure the file is created at {output_path}.
+"""
+
+        # Escape single quotes in prompt for bash
+        escaped_prompt = prompt.replace("'", "'\"'\"'")
+
+        # Use Claude Code CLI with --print mode
+        # --print: Run in non-interactive mode and print result
+        # --model: Specify the model to use
         cmd = f"""
-cd /root && cat instruction.md
-# Model should use skill here and write to {output_path}
-        """.strip()
+export ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY && \
+{cli_path} --model {model} --print '{escaped_prompt}' 2>&1
+"""
 
-        # This would be replaced with actual agent execution
-        # For now, just run a simple command
         result = container.exec_run(
             f"bash -c '{cmd}'",
             socket=True,
             stream=True,
-            timeout=timeout,
+            timeout=timeout_sec,
+        )
+
+        output = b""
+        for chunk in result.output:
+            output += chunk
+
+        return subprocess.CompletedProcess(args=cmd, returncode=result.exit_code, stdout=output)
+
+    def _run_model_attempt(
+        self,
+        container,
+        output_path: str,
+        timeout: int,
+    ) -> subprocess.CompletedProcess:
+        """Run Claude Code CLI without skill (initial model attempt).
+
+        This is the baseline attempt to see if the model can solve the task
+        without any external skill.
+        """
+        from ..agent_config import get_agent_params
+
+        exec_cfg = get_agent_params("execution")
+        model = exec_cfg.get("model", "claude-sonnet-4-6")
+        cli_path = exec_cfg.get("cli_path", "claude")
+        timeout_sec = exec_cfg.get("timeout", 600)
+
+        prompt = f"""You are solving a task. Read the instruction, then solve the task and write your output.
+
+Read the instruction:
+```
+$(cat /root/instruction.md)
+```
+
+Your goal: Solve the task and write the final output to {output_path} as JSON.
+
+Write your output and ensure the file is created at {output_path}.
+"""
+
+        escaped_prompt = prompt.replace("'", "'\"'\"'")
+
+        cmd = f"""
+export ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY && \
+{cli_path} --model {model} --print '{escaped_prompt}' 2>&1
+"""
+
+        result = container.exec_run(
+            f"bash -c '{cmd}'",
+            socket=True,
+            stream=True,
+            timeout=timeout_sec,
         )
 
         output = b""
