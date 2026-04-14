@@ -75,29 +75,6 @@ class SkillBundle:
 
 
 @dataclass
-class JudgerFeedback:
-    """Feedback from Judger evaluation."""
-    pass: bool
-    score: float
-    blocking_issues: list[dict] = field(default_factory=list)
-    non_blocking_concerns: list[dict] = field(default_factory=list)
-    positive_signals: list[str] = field(default_factory=list)
-    confidence: float = 0.0
-    recommendation: str = "unknown"  # proceed_to_real_test | keep_improving | abandon
-
-    def to_dict(self) -> dict:
-        return {
-            "pass": self.pass,
-            "score": self.score,
-            "blocking_issues": self.blocking_issues,
-            "non_blocking_concerns": self.non_blocking_concerns,
-            "positive_signals": self.positive_signals,
-            "confidence": self.confidence,
-            "recommendation": self.recommendation,
-        }
-
-
-@dataclass
 class TaskExperience:
     """Per-task experience record."""
     task_id: str

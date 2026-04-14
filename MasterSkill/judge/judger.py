@@ -102,8 +102,23 @@ blocking rather than letting a potentially wrong result waste a real test."""
 
     def evaluate(self, task_id: str, problem_description: str,
                  instruction: str, skill_description: str,
-                 execution_result: str, test_info: Optional[str] = None) -> JudgerFeedback:
-        """Evaluate a skill execution result."""
+                 execution_result: str, test_info: Optional[str] = None,
+                 criteria: Optional[dict] = None) -> JudgerFeedback:
+        """Evaluate a skill execution result.
+
+        Args:
+            criteria: Optional dict with additional_checks from build_judger_criteria.
+                     If provided, these strict checks will be applied.
+        """
+        # Build user prompt with criteria if provided
+        criteria_section = ""
+        if criteria and criteria.get("additional_checks"):
+            checks = criteria["additional_checks"]
+            criteria_section = "\n\n## STRICT ADDITIONAL CHECKS (Must Verify)\n"
+            for check in checks:
+                criteria_section += f"- **{check['check']}**: {check['reason']}\n"
+            criteria_section += "\nThese are known failure patterns. Be extra strict."
+
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -113,7 +128,7 @@ blocking rather than letting a potentially wrong result waste a real test."""
                 skill_description=skill_description[:1000],
                 execution_result=execution_result[:3000],
                 test_info=test_info or "No test info available.",
-            )}
+            ) + criteria_section}
         ]
 
         try:
@@ -130,7 +145,7 @@ blocking rather than letting a potentially wrong result waste a real test."""
                 return JudgerFeedback.from_dict(result)
             # Fallback to lenient pass
             return JudgerFeedback(
-                pass=True,
+                passed=True,
                 score=0.5,
                 recommendation="proceed_to_real_test",
                 confidence=0.3,

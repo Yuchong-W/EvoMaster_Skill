@@ -29,7 +29,7 @@ class JudgerFeedback:
     Evaluates skill execution result, not the skill itself.
     Cost is similar to real test, but provides richer diagnostic feedback.
     """
-    pass: bool
+    passed: bool  # Renamed from 'pass' (Python keyword)
     score: float = 0.0
     blocking_issues: list[BlockingIssue] = field(default_factory=list)
     non_blocking_concerns: list[NonBlockingConcern] = field(default_factory=list)
@@ -40,7 +40,7 @@ class JudgerFeedback:
     def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
-            "pass": self.pass,
+            "pass": self.passed,  # Keep JSON key as "pass" for compatibility
             "score": self.score,
             "blocking_issues": [
                 {
@@ -76,7 +76,7 @@ class JudgerFeedback:
         ]
 
         return cls(
-            pass=data.get("pass", False),
+            passed=data.get("pass", False),  # Map JSON "pass" to Python "passed"
             score=data.get("score", 0.0),
             blocking_issues=blocking_issues,
             non_blocking_concerns=non_blocking_concerns,
@@ -100,7 +100,7 @@ class JudgerFeedback:
         failed = any(ind in response_lower for ind in fail_indicators)
 
         return cls(
-            pass=passed and not failed,
+            passed=passed and not failed,
             score=0.5 if passed else 0.0,
             recommendation="proceed_to_real_test" if passed else "keep_improving",
         )

@@ -6,10 +6,11 @@ from typing import Optional
 import subprocess
 
 from ..core.types import (
-    Config, TaskContext, SkillBundle, JudgerFeedback,
+    Config, TaskContext, SkillBundle,
     TaskStatus, TaskAttempt, ResearchOutput,
     ProblemType, EffectiveMethod, IneffectiveMethod,
 )
+from ..judge.feedback import JudgerFeedback
 from ..memory import ShallowMemory, TaskExperienceMemory, MetaMemoryStore
 from ..memory_manager import MemoryManager, AgentRole
 from ..agents import Searcher, Analyzer, Critic, Reflector
@@ -158,9 +159,9 @@ class BenchmarkRunner:
         # Step 4: Quick Proposer / Judger loop
         while real_test_failures < self.config.max_real_test_failures:
             # Test current skill with Judger
-            judger_result = self._evaluate_with_judger(context, current_skill)
+            judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
 
-            if judger_result.pass:
+            if judger_result.passed:
                 # Judger passed -> real test
                 real_result = self._run_real_test(context, current_skill)
 
@@ -171,24 +172,30 @@ class BenchmarkRunner:
                 else:
                     # Real test failed
                     real_test_failures += 1
-                    judger_research_triggers = 0  # Reset for new Judger
 
                     if real_test_failures >= self.config.max_real_test_failures:
                         # Max failures reached
                         self._on_task_abandoned(task_id, context)
                         return TaskStatus.ABANDONED
 
-                    # Need stricter Judger
+                    # Need stricter Judger based on this failure
+                    # Track this failure for criteria building
+                    failure_record = {
+                        "type": "real_test_failed_after_judger_pass",
+                        "skill_id": current_skill.skill_id,
+                        "reason": str(real_result.get("details", "")),
+                    }
                     current_judger_criteria = self.judger.build_judger_criteria(
                         task_id, context.instruction_md[:200],
                         context.instruction_md,
-                        []
+                        [failure_record]  # Pass the failure for stricter criteria
                     )
-                    # Continue loop to try again with stricter criteria
+                    # Continue loop - do NOT reset judger_research_triggers
+                    # We need to track that we're stuck with this skill
+                    continue
             else:
                 # Judger failed -> Quick Proposer
                 quick_proposer_iterations = 0
-                judger_failures = 0
 
                 while quick_proposer_iterations < self.config.max_quick_proposer_iterations:
                     # Track feedback
@@ -206,17 +213,15 @@ class BenchmarkRunner:
                     quick_proposer_iterations += 1
 
                     # Re-evaluate with Judger
-                    judger_result = self._evaluate_with_judger(context, current_skill)
+                    judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
 
-                    if judger_result.pass:
+                    if judger_result.passed:
                         # Break to real test
                         judger_feedback_history.append(judger_result.to_dict())
                         break
-                    else:
-                        judger_failures += 1
 
                 # Check if stuck at Judger
-                if not judger_result.pass:
+                if not judger_result.passed:
                     # Quick proposer exhausted -> Research
                     # Track consecutive research triggers without any judger pass
                     judger_research_triggers += 1
@@ -230,15 +235,14 @@ class BenchmarkRunner:
                             feedbacks=judger_feedback_history,
                             trigger_count=judger_research_triggers,
                         )
-                        # If reflection suggests Judger is wrong, adjust criteria
+                        # If reflection suggests Judger is wrong, rebuild with LOOSER criteria
                         if reflection_result.get("diagnosis") == "judger_too_strict":
-                            # Rebuild criteria with looser standards
                             current_judger_criteria = self.judger.build_judger_criteria(
                                 task_id, context.instruction_md[:200],
                                 context.instruction_md,
-                                judger_feedback_history[-3:] if judger_feedback_history else []
+                                []  # Empty = looser standards, no additional checks
                             )
-                        # Reset trigger count after reflection (don't reset on skill creation)
+                        # Reset trigger count after reflection
                         judger_research_triggers = 0
 
                     # Research new approach
@@ -344,7 +348,7 @@ class BenchmarkRunner:
         # Execute skill with Judger evaluation
         judger_result = self._evaluate_with_judger(context, skill)
 
-        if judger_result.pass:
+        if judger_result.passed:
             # Try real test
             real_result = self._run_real_test(context, skill)
             return {
@@ -461,8 +465,13 @@ class BenchmarkRunner:
             result += f"- {method.method_id}: {method.description} (transferability: {method.transferability})\n"
         return result
 
-    def _evaluate_with_judger(self, context: TaskContext, skill: SkillBundle) -> JudgerFeedback:
-        """Evaluate skill with Judger."""
+    def _evaluate_with_judger(self, context: TaskContext, skill: SkillBundle,
+                               criteria: Optional[dict] = None) -> JudgerFeedback:
+        """Evaluate skill with Judger.
+
+        Args:
+            criteria: Optional stricter criteria from build_judger_criteria.
+        """
         # Execute skill to get result (placeholder)
         execution_result = self._execute_skill(skill, context)
 
@@ -472,6 +481,7 @@ class BenchmarkRunner:
             instruction=context.instruction_md,
             skill_description=skill.description,
             execution_result=execution_result,
+            criteria=criteria,
         )
 
     def _execute_skill(self, skill: SkillBundle, context: TaskContext) -> str:
