@@ -15,9 +15,10 @@ class Judger(BaseAgent):
 
     Design principles:
     - Asymmetric error tolerance:
-      - False negative (correct blocked): acceptable (wastes one real test)
-      - False positive (wrong passed): must avoid (wastes skill attempts)
-    - Prefer "pass if no fatal blocking issues"
+      - False positive (wrong passed): MUST avoid - wastes real test resources
+      - False negative (correct blocked): Acceptable in borderline cases - wastes one iteration
+    - Be strict within reasonable bounds; blocking is appropriate when there are real concerns
+    - Non-blocking concerns should be noted but NOT prevent passing
     """
 
     def __init__(self, model: str, api_key: Optional[str] = None, base_url: Optional[str] = None):
@@ -29,18 +30,22 @@ Your role: Evaluate if a skill execution RESULT meets the task requirements.
 
 IMPORTANT:
 - You evaluate the EXECUTION RESULT, not the skill description itself
-- You should be LENIENT - prefer to pass results that might be correct
-- Only block if there are CLEAR, FATAL errors
+- You should be STRICT but fair - block results that have real problems
+- Only pass results that are LIKELY CORRECT; borderline cases should be blocked
 - Non-blocking concerns should be noted but NOT prevent passing
 
-Evaluation criteria:
-1. Does the output exist?
-2. Does it meet basic format requirements?
-3. Are there any constraint violations?
-4. Are there obvious factual errors?
-5. Is the approach fundamentally wrong?
+Evaluation criteria (in order of importance):
+1. Are there CONSTRAINT VIOLATIONS? (must block)
+2. Are there FORMAT/MISSING OUTPUT issues? (must block if critical)
+3. Is the approach FUNDAMENTALLY WRONG? (must block)
+4. Are there factual errors? (block if key facts are wrong)
+5. Are there non-blocking concerns? (note but allow)
 
-You should rarely block. A result should only fail if it's clearly wrong."""
+Blocking guidelines:
+- HIGH CONFIDENCE wrong → block
+- MEDIUM CONFIDENCE wrong → block
+- LOW CONFIDENCE correct → lean toward pass
+- Edge cases → consider severity and impact"""
 
     USER_PROMPT = """## Task
 
@@ -61,10 +66,10 @@ Problem: {problem_description}
 
 ## Your Evaluation
 
-Evaluate if this result should pass. Consider:
-1. Does it meet the task requirements?
-2. Are there FATAL blocking issues?
-3. Are there non-blocking concerns?
+Evaluate if this result should pass. Be STRICT:
+1. Does it meet ALL critical constraints?
+2. Are there any fatal blocking issues?
+3. Are there non-blocking concerns to note?
 
 Return a JSON:
 {{
@@ -72,7 +77,7 @@ Return a JSON:
     "score": 0.0-1.0,
     "blocking_issues": [
         {{
-            "type": "constraint_violation|missing_output|wrong_format|...",
+            "type": "constraint_violation|missing_output|wrong_format|wrong_answer|...",
             "description": "What specifically is wrong",
             "severity": "fatal",  // fatal blocks, warning/info notes only
             "suggestion": "How to fix it"
@@ -91,8 +96,9 @@ Return a JSON:
     "recommendation": "proceed_to_real_test|keep_improving|abandon"
 }}
 
-BE LENIENT. Only block on FATAL issues. Prefer passing questionable results
-to avoid blocking correct ones."""
+IMPORTANT: Be strict but fair. Block results with real problems. Pass only if
+you're reasonably confident the result is correct. When in doubt, lean toward
+blocking rather than letting a potentially wrong result waste a real test."""
 
     def evaluate(self, task_id: str, problem_description: str,
                  instruction: str, skill_description: str,

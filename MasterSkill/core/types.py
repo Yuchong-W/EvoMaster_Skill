@@ -185,7 +185,7 @@ class Config:
     # Limits
     max_real_test_failures: int = 4
     max_quick_proposer_iterations: int = 3
-    max_research_triggers_same_judger: int = 3
+    max_research_triggers_same_judger: int = 2
     max_task_experience_entries: int = 2
 
     # Models per agent type (loaded from agent_config)

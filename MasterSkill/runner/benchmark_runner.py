@@ -34,7 +34,7 @@ class BenchmarkRunner:
     8. If real test passes -> Memory update -> next task
     9. If real test fails -> Research modifies Judger
     10. If skill stuck at Judger -> QuickProposer (max 3 iterations)
-    11. If same Judger triggers 3x Research with no real test -> reflect
+    11. If same Judger triggers 2x Research with no judger pass -> reflect
     12. After 4 real test failures -> abandon task
     """
 
@@ -218,10 +218,11 @@ class BenchmarkRunner:
                 # Check if stuck at Judger
                 if not judger_result.pass:
                     # Quick proposer exhausted -> Research
+                    # Track consecutive research triggers without any judger pass
                     judger_research_triggers += 1
 
                     if judger_research_triggers >= self.config.max_research_triggers_same_judger:
-                        # Need to reflect on Judger
+                        # 2+ consecutive Research triggers with NO judger pass → reflect
                         reflection_result = self._reflect_on_judger(
                             context=context,
                             judger_criteria=current_judger_criteria,
@@ -237,13 +238,15 @@ class BenchmarkRunner:
                                 context.instruction_md,
                                 judger_feedback_history[-3:] if judger_feedback_history else []
                             )
+                        # Reset trigger count after reflection (don't reset on skill creation)
                         judger_research_triggers = 0
 
                     # Research new approach
                     research_output = self._research_new_skill(context)
                     if research_output.skill:
                         current_skill = research_output.skill
-                        judger_research_triggers = 0  # Reset
+                        # DO NOT reset judger_research_triggers here
+                        # We only reset when judger actually passes (reaching real test)
 
         return TaskStatus.ABANDONED
 
@@ -367,19 +370,23 @@ class BenchmarkRunner:
             trace_history=self.shallow_memory.get_trace(context.task_id),
         )
 
-        # Get memory context for Searcher
+        # Query memory for context
+        previously_tried = self._get_previously_tried_methods(context)
+        ineffective_methods = self._get_ineffective_methods(context)
+        effective_methods = self._get_effective_methods(context)
+
         memory_context = {
-            "previously_tried": "TODO: query task memory",
-            "ineffective_methods": "TODO: query meta memory",
-            "effective_methods": "TODO: query meta memory",
+            "previously_tried": previously_tried,
+            "ineffective_methods": ineffective_methods,
+            "effective_methods": effective_methods,
         }
 
         # Searcher searches
         search_result = self.searcher.run(
             problem_description=analysis.get("suggested_directions", [context.instruction_md])[0],
             problem_type=context.problem_type.value if context.problem_type else "tool",
-            domain="TODO: extract from task",
-            problem_modeling="TODO: extract from task",
+            domain=context.domain or "general",
+            problem_modeling=context.problem_modeling or "direct_solution",
             memory_context=memory_context,
         )
 
@@ -387,13 +394,13 @@ class BenchmarkRunner:
         skill = self.skill_creator.create_skill(
             task_id=context.task_id,
             problem_type=context.problem_type.value if context.problem_type else "tool",
-            domain="TODO",
-            problem_modeling="TODO",
+            domain=context.domain or "general",
+            problem_modeling=context.problem_modeling or "direct_solution",
             research_output=ResearchOutput(
                 analysis=analysis.get("root_cause", ""),
                 search_summary=search_result.get("search_summary", ""),
             ),
-            effective_methods=[],
+            effective_methods=effective_methods,
         )
 
         # Critic reviews
@@ -413,6 +420,46 @@ class BenchmarkRunner:
             new_method=True,
             critic_approved=True,
         )
+
+    def _get_previously_tried_methods(self, context: TaskContext) -> str:
+        """Get methods previously tried for this task."""
+        trace = self.shallow_memory.get_trace(context.task_id)
+        if not trace:
+            return "No previous attempts"
+        tried = []
+        for attempt in trace:
+            tried.append(f"- {attempt.skill_id}: judger_passed={attempt.judger_passed}, real_test_passed={attempt.real_test_passed}")
+        return "Previously tried methods:\n" + "\n".join(tried)
+
+    def _get_ineffective_methods(self, context: TaskContext) -> str:
+        """Get known ineffective methods from meta memory."""
+        if not context.problem_type:
+            return "No ineffective methods recorded"
+        # Get all ineffective methods for this problem type
+        meta = self.meta_memory.get(context.problem_type, context.domain or "general", context.problem_modeling or "direct_solution")
+        if not meta or not meta.ineffective_methods:
+            return "No ineffective methods recorded"
+        result = "Known ineffective methods:\n"
+        for method in meta.ineffective_methods:
+            result += f"- {method.method_id}: {method.description} (failed on: {method.failed_tasks})\n"
+        return result
+
+    def _get_effective_methods(self, context: TaskContext) -> str:
+        """Get transferable effective methods from meta memory."""
+        if not context.problem_type:
+            return "No effective methods recorded"
+        effective = self.meta_memory.get_transferable_skills(
+            problem_type=context.problem_type,
+            domain=context.domain or "general",
+            modeling=context.problem_modeling or "direct_solution",
+            min_transferability="low",  # Include low transferability for reference
+        )
+        if not effective:
+            return "No effective methods recorded"
+        result = "Known effective methods:\n"
+        for method in effective:
+            result += f"- {method.method_id}: {method.description} (transferability: {method.transferability})\n"
+        return result
 
     def _evaluate_with_judger(self, context: TaskContext, skill: SkillBundle) -> JudgerFeedback:
         """Evaluate skill with Judger."""
@@ -468,7 +515,7 @@ class BenchmarkRunner:
     ) -> dict:
         """Reflect on Judger when stuck.
 
-        Called when same Judger has triggered Research 3x without any skill
+        Called when same Judger has triggered Research 2x without any judger pass
         reaching real test. Analyzes whether Judger is too strict.
         """
         # Use Reflector agent to analyze
@@ -493,27 +540,33 @@ class BenchmarkRunner:
 
     def _on_task_solved(self, task_id: str, context: TaskContext, skill: SkillBundle) -> None:
         """Handle successful task resolution."""
+        # Analyze why this skill worked
+        why_worked = self._analyze_success(context, skill)
+
         # Update task memory
         self.task_memory.update_final_status(
             task_id=task_id,
             status=TaskStatus.SOLVED,
             what_worked=skill.description,
-            why_worked="TODO: analyze",
+            why_worked=why_worked,
             effective_skill_id=skill.skill_id,
         )
+
+        # Determine transferability based on problem type
+        transferability = self._estimate_transferability(context, skill)
 
         # Update meta memory
         effective_method = EffectiveMethod(
             method_id=skill.skill_id,
             description=skill.description,
             origin_task=task_id,
-            transferability="medium",
-            conditions="TODO",
+            transferability=transferability,
+            conditions=f"problem_type={context.problem_type.value if context.problem_type else 'unknown'}, domain={context.domain}, modeling={context.problem_modeling}",
         )
         self.meta_memory.add_effective_method(
             problem_type=context.problem_type or ProblemType.TOOL,
-            domain="TODO",
-            modeling="TODO",
+            domain=context.domain or "general",
+            modeling=context.problem_modeling or "direct_solution",
             method=effective_method,
         )
 
@@ -537,16 +590,59 @@ class BenchmarkRunner:
             status=TaskStatus.ABANDONED,
         )
 
-        # Record ineffective method
+        # Record ineffective method with context info for future avoidance
         ineffective_method = IneffectiveMethod(
             method_id="unknown",
-            description="Multiple attempts failed",
+            description=f"problem_type={context.problem_type.value if context.problem_type else 'unknown'}, domain={context.domain}, modeling={context.problem_modeling}",
             failed_tasks=[task_id],
             failure_reason="Could not solve within limits",
         )
         self.meta_memory.add_ineffective_method(
             problem_type=context.problem_type or ProblemType.TOOL,
-            domain="TODO",
-            modeling="TODO",
+            domain=context.domain or "general",
+            modeling=context.problem_modeling or "direct_solution",
             method=ineffective_method,
         )
+
+    def _analyze_success(self, context: TaskContext, skill: SkillBundle) -> str:
+        """Analyze why a skill worked for this task."""
+        # Build analysis based on task and skill characteristics
+        factors = []
+
+        # Problem type factor
+        if context.problem_type:
+            factors.append(f"problem_type={context.problem_type.value}")
+
+        # Domain factor
+        if context.domain:
+            factors.append(f"domain={context.domain}")
+
+        # Modeling factor
+        if context.problem_modeling:
+            factors.append(f"problem_modeling={context.problem_modeling}")
+
+        # Skill characteristics
+        if skill.trigger_condition:
+            factors.append(f"trigger={skill.trigger_condition[:50]}")
+
+        return "; ".join(factors) if factors else "Skill succeeded on task"
+
+    def _estimate_transferability(self, context: TaskContext, skill: SkillBundle) -> str:
+        """Estimate how transferable this skill/method is to similar tasks."""
+        # Higher transferability if:
+        # 1. Problem type is KNOWLEDGE (methods are more general)
+        # 2. Domain is broader/more common
+        # 3. Modeling is more generic
+
+        if context.problem_type == ProblemType.KNOWLEDGE:
+            return "high"
+
+        # Tool bottleneck methods tend to be more specific
+        if context.domain in ("code_generation", "tool_use", "reasoning_about_tools"):
+            return "medium"
+
+        # Very specific modeling suggests lower transferability
+        if context.problem_modeling and any(x in context.problem_modeling.lower() for x in ["specific", "narrow", "exact"]):
+            return "low"
+
+        return "medium"
