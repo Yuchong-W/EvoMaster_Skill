@@ -1,0 +1,26 @@
+[project]
+name = "icml-research-team"
+version = "0.1.0"
+description = "End-to-end autonomous research team for ICML paper analysis"
+requires-python = ">=3.10"
+dependencies = [
+    "docker>=7.0.0",
+    "langgraph>=0.0.20",
+    "langchain-core>=0.1.0",
+    "langchain-community>=0.0.0",
+    "chromadb>=0.4.0",
+    "arxiv>=1.4.0",
+    "openai>=1.0.0",
+    "pymupdf>=1.23.0",
+    "httpx>=0.25.0",
+    "tiktoken>=0.5.0",
+    "networkx>=3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
