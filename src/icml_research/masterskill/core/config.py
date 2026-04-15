@@ -43,6 +43,18 @@ def load_config(
             "max_research_triggers_same_judger",
             Config.max_research_triggers_same_judger,
         ),
+        initial_attempt_timeout_seconds=kwargs.get(
+            "initial_attempt_timeout_seconds",
+            Config.initial_attempt_timeout_seconds,
+        ),
+        skill_execution_timeout_seconds=kwargs.get(
+            "skill_execution_timeout_seconds",
+            Config.skill_execution_timeout_seconds,
+        ),
+        real_test_timeout_seconds=kwargs.get(
+            "real_test_timeout_seconds",
+            Config.real_test_timeout_seconds,
+        ),
         openai_api_key=api_key,
         openai_base_url=base_url,
         model_searcher=_get_model("searcher", model_overrides.get("searcher", "")),

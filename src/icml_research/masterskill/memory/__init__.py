@@ -9,5 +9,6 @@ Three-layer architecture:
 from .shallow import ShallowMemory
 from .task_experience import TaskExperienceMemory
 from .meta_memory import MetaMemoryStore
+from .benchmark_results import BenchmarkResultStore
 
-__all__ = ["ShallowMemory", "TaskExperienceMemory", "MetaMemoryStore"]
+__all__ = ["ShallowMemory", "TaskExperienceMemory", "MetaMemoryStore", "BenchmarkResultStore"]

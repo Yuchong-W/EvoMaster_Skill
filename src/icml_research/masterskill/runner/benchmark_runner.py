@@ -1,5 +1,8 @@
 """Benchmark Runner - orchestrates the full benchmark workflow."""
 
+import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -7,9 +10,10 @@ from ..core.types import (
     Config, TaskContext, SkillBundle,
     TaskStatus, TaskAttempt, ResearchOutput,
     ProblemType, EffectiveMethod, IneffectiveMethod,
+    BenchmarkRunEvent, BenchmarkRunRecord,
 )
 from ..judge.feedback import JudgerFeedback
-from ..memory import ShallowMemory, TaskExperienceMemory, MetaMemoryStore
+from ..memory import ShallowMemory, TaskExperienceMemory, MetaMemoryStore, BenchmarkResultStore
 from ..memory_manager import MemoryManager
 from ..agents import Searcher, Analyzer, Critic, Reflector
 from ..skill import SkillRepository, SkillCreator
@@ -45,6 +49,7 @@ class BenchmarkRunner:
         self.shallow_memory = ShallowMemory(f"{data_dir}/shallow")
         self.task_memory = TaskExperienceMemory(f"{data_dir}/task_experience")
         self.meta_memory = MetaMemoryStore(f"{data_dir}/meta")
+        self.result_store = BenchmarkResultStore(f"{data_dir}/benchmark_runs")
 
         # Memory manager with permission control
         self.memory = MemoryManager(data_dir)
@@ -103,82 +108,114 @@ class BenchmarkRunner:
 
     def run_task(self, task_id: str) -> TaskStatus:
         """Run a single task through the feedback loop."""
-        # Load task context
-        context = self._load_task_context(task_id)
-        if not context:
-            return TaskStatus.ABANDONED
-
-        # Step 1: Model attempts task -> fails
-        attempt_result = self._model_attempt(context)
-        if attempt_result.get("success"):
-            return TaskStatus.SOLVED
-
-        # Analyze failure
-        failure_analysis = self.analyzer.run(
+        started_at = datetime.now(timezone.utc).isoformat()
+        started_monotonic = time.monotonic()
+        run_record = BenchmarkRunRecord(
+            run_id=uuid.uuid4().hex[:12],
             task_id=task_id,
-            problem_type=context.problem_type.value if context.problem_type else "unknown",
-            attempt_result=str(attempt_result.get("error", "model failed")),
-            trace_history=self.shallow_memory.get_trace(task_id),
-            judger_feedback=None,
+            status=TaskStatus.UNSOLVED,
+            started_at=started_at,
         )
-
-        # Determine problem type
-        problem_type = failure_analysis.get("problem_type_refinement", "tool_bottleneck")
-        context.problem_type = ProblemType(problem_type) if problem_type else ProblemType.TOOL
-
-        # Initialize counters
+        skill_ids_tried: set[str] = set()
         real_test_failures = 0
-        judger_research_triggers = 0
-        current_skill: Optional[SkillBundle] = None
-        current_judger_criteria: Optional[dict] = None
+        status = TaskStatus.ABANDONED
+        context: Optional[TaskContext] = None
 
-        # Track history for reflection
-        judger_feedback_history: list[dict] = []
-        skill_summary_history: list[str] = []
+        try:
+            context = self._load_task_context(task_id)
+            if not context:
+                run_record.failure_class = "missing_task_context"
+                return TaskStatus.ABANDONED
 
-        # Step 2: Try existing skills (试探性复用)
-        existing_skills = self._find_reusable_skills(context)
-        if existing_skills:
-            # Try each existing skill
-            for skill in existing_skills:
-                result = self._try_skill(context, skill)
-                if result.get("passed"):
-                    self._on_task_solved(task_id, context, skill)
-                    return TaskStatus.SOLVED
+            run_record.problem_type = context.problem_type.value if context.problem_type else ""
+            run_record.domain = context.domain
+            run_record.problem_modeling = context.problem_modeling
 
-        # Step 3: Need new skill - Research builds Skill + Judger (parallel)
-        research_output = self._research_new_skill(context)
-        if not research_output.skill:
-            # Research failed
-            return TaskStatus.ABANDONED
+            attempt_result = self._model_attempt(context)
+            self._append_run_event(
+                run_record,
+                stage="base_attempt",
+                passed=attempt_result.get("success", False),
+                model=attempt_result.get("model", ""),
+                score=attempt_result.get("score", 0.0),
+                duration_seconds=attempt_result.get("duration_seconds", 0.0),
+                failure_class=attempt_result.get("failure_class", ""),
+                routing_reason=attempt_result.get("routing_reason", ""),
+                notes=attempt_result.get("error", ""),
+            )
+            if attempt_result.get("success"):
+                self._on_base_model_solved(task_id, context, attempt_result)
+                status = TaskStatus.SOLVED
+                run_record.final_score = 1.0
+                run_record.final_model = attempt_result.get("model", "")
+                return status
 
-        current_skill = research_output.skill
+            failure_analysis = self.analyzer.run(
+                task_id=task_id,
+                problem_type=context.problem_type.value if context.problem_type else "unknown",
+                attempt_result=str(attempt_result.get("error", "model failed")),
+                trace_history=self.shallow_memory.get_trace(task_id),
+                judger_feedback=None,
+            )
 
-        # Step 4: Quick Proposer / Judger loop
-        while real_test_failures < self.config.max_real_test_failures:
-            # Test current skill with Judger
-            judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
+            problem_type = failure_analysis.get("problem_type_refinement", "tool_bottleneck")
+            try:
+                context.problem_type = ProblemType(problem_type) if problem_type else ProblemType.TOOL
+            except ValueError:
+                context.problem_type = context.problem_type or ProblemType.TOOL
+            run_record.problem_type = context.problem_type.value
 
-            if judger_result.passed:
-                judger_research_triggers = 0
-                # Judger passed -> real test
-                real_result = self._run_real_test(context, current_skill)
+            judger_research_triggers = 0
+            current_skill: Optional[SkillBundle] = None
+            current_judger_criteria: Optional[dict] = None
+            judger_feedback_history: list[dict] = []
+            skill_summary_history: list[str] = []
 
-                if real_result.get("passed"):
-                    # Success!
-                    self._on_task_solved(task_id, context, current_skill)
-                    return TaskStatus.SOLVED
-                else:
-                    # Real test failed
+            existing_skills = self._find_reusable_skills(context)
+            if existing_skills:
+                for skill in existing_skills:
+                    skill_ids_tried.add(skill.skill_id)
+                    result = self._try_skill(context, skill)
+                    real_result = result.get("real_test_result")
+                    if real_result:
+                        self._append_real_test_event(run_record, skill.skill_id, real_result)
+                    if result.get("passed"):
+                        self._on_task_solved(task_id, context, skill)
+                        status = TaskStatus.SOLVED
+                        run_record.final_score = 1.0
+                        run_record.final_model = real_result.get("model", "") if real_result else ""
+                        return status
+
+            research_output = self._research_new_skill(context)
+            if not research_output.skill:
+                run_record.failure_class = "research_failed"
+                return TaskStatus.ABANDONED
+
+            current_skill = research_output.skill
+            skill_ids_tried.add(current_skill.skill_id)
+
+            while real_test_failures < self.config.max_real_test_failures:
+                judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
+
+                if judger_result.passed:
+                    judger_research_triggers = 0
+                    real_result = self._run_real_test(context, current_skill)
+                    self._append_real_test_event(run_record, current_skill.skill_id, real_result)
+
+                    if real_result.get("passed"):
+                        self._on_task_solved(task_id, context, current_skill)
+                        status = TaskStatus.SOLVED
+                        run_record.final_score = real_result.get("score", 0.0)
+                        run_record.final_model = real_result.get("model", "")
+                        return status
+
                     real_test_failures += 1
 
                     if real_test_failures >= self.config.max_real_test_failures:
-                        # Max failures reached
                         self._on_task_abandoned(task_id, context)
+                        run_record.failure_class = real_result.get("failure_class", "")
                         return TaskStatus.ABANDONED
 
-                    # Need stricter Judger based on this failure
-                    # Track this failure for criteria building
                     failure_record = {
                         "type": "real_test_failed_after_judger_pass",
                         "skill_id": current_skill.skill_id,
@@ -187,46 +224,34 @@ class BenchmarkRunner:
                     current_judger_criteria = self.judger.build_judger_criteria(
                         task_id, context.instruction_md[:200],
                         context.instruction_md,
-                        [failure_record]  # Pass the failure for stricter criteria
+                        [failure_record]
                     )
-                    # Continue loop - do NOT reset judger_research_triggers
-                    # We need to track that we're stuck with this skill
                     continue
-            else:
-                # Judger failed -> Quick Proposer
-                quick_proposer_iterations = 0
 
+                quick_proposer_iterations = 0
                 while quick_proposer_iterations < self.config.max_quick_proposer_iterations:
-                    # Track feedback
                     judger_feedback_history.append(judger_result.to_dict())
                     skill_summary_history.append(
                         f"Skill: {current_skill.name}, iterations: {quick_proposer_iterations}"
                     )
 
-                    # Quick Proposer fix
                     current_skill = self.quick_proposer.propose_fix(
                         current_skill,
                         judger_result,
                         self.shallow_memory.get_trace(task_id)
                     )
+                    skill_ids_tried.add(current_skill.skill_id)
                     quick_proposer_iterations += 1
-
-                    # Re-evaluate with Judger
                     judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
 
                     if judger_result.passed:
-                        # Break to real test
                         judger_feedback_history.append(judger_result.to_dict())
                         break
 
-                # Check if stuck at Judger
                 if not judger_result.passed:
-                    # Quick proposer exhausted -> Research
-                    # Track consecutive research triggers without any judger pass
                     judger_research_triggers += 1
 
                     if judger_research_triggers >= self.config.max_research_triggers_same_judger:
-                        # 2+ consecutive Research triggers with NO judger pass → reflect
                         reflection_result = self._reflect_on_judger(
                             context=context,
                             judger_criteria=current_judger_criteria,
@@ -234,24 +259,36 @@ class BenchmarkRunner:
                             feedbacks=judger_feedback_history,
                             trigger_count=judger_research_triggers,
                         )
-                        # If reflection suggests Judger is wrong, rebuild with LOOSER criteria
                         if reflection_result.get("diagnosis") == "judger_too_strict":
                             current_judger_criteria = self.judger.build_judger_criteria(
                                 task_id, context.instruction_md[:200],
                                 context.instruction_md,
-                                []  # Empty = looser standards, no additional checks
+                                []
                             )
-                        # Reset trigger count after reflection
                         judger_research_triggers = 0
 
-                    # Research new approach
                     research_output = self._research_new_skill(context)
                     if research_output.skill:
                         current_skill = research_output.skill
-                        # DO NOT reset judger_research_triggers here
-                        # We only reset when judger actually passes (reaching real test)
+                        skill_ids_tried.add(current_skill.skill_id)
 
-        return TaskStatus.ABANDONED
+            if context:
+                self._on_task_abandoned(task_id, context)
+            return TaskStatus.ABANDONED
+        finally:
+            run_record.status = status
+            run_record.real_test_failures = real_test_failures
+            run_record.skills_tried = sorted(skill_ids_tried)
+            run_record.finished_at = datetime.now(timezone.utc).isoformat()
+            run_record.duration_seconds = time.monotonic() - started_monotonic
+            if not run_record.final_model and run_record.events:
+                for event in reversed(run_record.events):
+                    if event.model:
+                        run_record.final_model = event.model
+                        break
+            if not run_record.failure_class:
+                run_record.failure_class = self._infer_failure_class(run_record)
+            self.result_store.save(run_record)
 
     def _model_attempt(self, context: TaskContext) -> dict:
         """Run model on task without skill (initial attempt)."""
@@ -260,12 +297,18 @@ class BenchmarkRunner:
             task_id=context.task_id,
             instruction=context.instruction_md,
             output_path=context.output_path,
+            timeout=self.config.initial_attempt_timeout_seconds,
         )
 
         return {
             "success": result.get("passed", False),
             "error": result.get("error", ""),
             "output": result.get("output", ""),
+            "model": result.get("model", ""),
+            "score": result.get("score", 0.0),
+            "duration_seconds": result.get("duration_seconds", 0.0),
+            "routing_reason": result.get("routing_reason", ""),
+            "failure_class": result.get("failure_class", ""),
         }
 
     def _load_task_context(self, task_id: str) -> Optional[TaskContext]:
@@ -506,6 +549,7 @@ class BenchmarkRunner:
             skill=skill,
             instruction=context.instruction_md,
             output_path=context.output_path,
+            timeout=self.config.skill_execution_timeout_seconds,
         )
 
         if result["success"]:
@@ -523,6 +567,7 @@ class BenchmarkRunner:
             task_id=context.task_id,
             instruction=context.instruction_md,
             skill=skill,
+            timeout=self.config.real_test_timeout_seconds,
         )
 
         return {
@@ -615,6 +660,117 @@ class BenchmarkRunner:
             real_test_passed=True,
         )
         self.shallow_memory.add_trace(task_id, attempt)
+
+    def _on_base_model_solved(self, task_id: str, context: TaskContext, attempt_result: dict) -> None:
+        """Handle tasks solved without any external skill."""
+        self.task_memory.ensure_task(
+            task_id=task_id,
+            problem_type=context.problem_type or ProblemType.TOOL,
+            domain=context.domain,
+            problem_modeling=context.problem_modeling,
+        )
+        model = attempt_result.get("model", "")
+        routing_reason = attempt_result.get("routing_reason", "")
+        what_worked = "Solved without external skill"
+        if model:
+            what_worked += f" using {model}"
+        why_worked = self._truncate_note(
+            "; ".join(
+                part for part in [
+                    "base model solved the task directly",
+                    f"problem_type={context.problem_type.value if context.problem_type else 'unknown'}",
+                    f"domain={context.domain}" if context.domain else "",
+                    f"problem_modeling={context.problem_modeling}" if context.problem_modeling else "",
+                    f"routing={routing_reason}" if routing_reason else "",
+                ]
+                if part
+            ),
+            limit=400,
+        )
+        self.task_memory.update_final_status(
+            task_id=task_id,
+            status=TaskStatus.SOLVED,
+            what_worked=what_worked,
+            why_worked=why_worked,
+            effective_skill_id="",
+        )
+        self.shallow_memory.add_trace(
+            task_id,
+            TaskAttempt(
+                skill_id="__base_model__",
+                quick_proposer_iterations=0,
+                research_triggered=False,
+                judger_passed=True,
+                real_test_passed=True,
+                success_factors=[why_worked],
+            ),
+        )
+
+    def _append_run_event(
+        self,
+        run_record: BenchmarkRunRecord,
+        stage: str,
+        passed: bool,
+        model: str = "",
+        score: float = 0.0,
+        duration_seconds: float = 0.0,
+        failure_class: str = "",
+        skill_id: str = "",
+        routing_reason: str = "",
+        notes: str = "",
+    ) -> None:
+        """Attach a compact event record to the task run."""
+        run_record.events.append(
+            BenchmarkRunEvent(
+                stage=stage,
+                passed=passed,
+                model=model,
+                score=score,
+                duration_seconds=duration_seconds,
+                failure_class=failure_class,
+                skill_id=skill_id,
+                routing_reason=routing_reason,
+                notes=self._truncate_note(notes),
+            )
+        )
+
+    def _append_real_test_event(
+        self,
+        run_record: BenchmarkRunRecord,
+        skill_id: str,
+        real_result: dict,
+    ) -> None:
+        """Record a real-test outcome for later analysis."""
+        self._append_run_event(
+            run_record,
+            stage="real_test",
+            passed=real_result.get("passed", False),
+            model=real_result.get("model", ""),
+            score=real_result.get("score", 0.0),
+            duration_seconds=real_result.get("duration_seconds", 0.0),
+            failure_class=real_result.get("failure_class", ""),
+            skill_id=skill_id,
+            routing_reason=real_result.get("routing_reason", ""),
+            notes=real_result.get("details", ""),
+        )
+
+    def _truncate_note(self, text: str, limit: int = 600) -> str:
+        """Keep persisted notes compact."""
+        if not text:
+            return ""
+        normalized = " ".join(str(text).split())
+        if len(normalized) <= limit:
+            return normalized
+        return normalized[: limit - 3] + "..."
+
+    def _infer_failure_class(self, run_record: BenchmarkRunRecord) -> str:
+        """Infer a final failure class from persisted events."""
+        if run_record.status == TaskStatus.SOLVED:
+            return ""
+        for event in reversed(run_record.events):
+            if event.failure_class:
+                return event.failure_class
+        return "abandoned_without_classification"
 
     def _on_task_abandoned(self, task_id: str, context: TaskContext) -> None:
         """Handle task abandonment."""

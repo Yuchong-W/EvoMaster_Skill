@@ -18,6 +18,13 @@ class TaskStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
+class TaskDifficulty(str, Enum):
+    """Execution difficulty used for model routing."""
+    LIGHT = "light"
+    MEDIUM = "medium"
+    HARD = "hard"
+
+
 class SkillStatus(str, Enum):
     """Skill lifecycle status."""
     DRAFT = "draft"
@@ -138,6 +145,51 @@ class TaskContext:
 
 
 @dataclass
+class ExecutionPlan:
+    """Execution routing decision for a task run."""
+    task_id: str
+    difficulty: TaskDifficulty
+    preferred_model: str
+    category: str = ""
+    tags: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BenchmarkRunEvent:
+    """A compact record for one significant task-run event."""
+    stage: str
+    passed: bool
+    model: str = ""
+    score: float = 0.0
+    duration_seconds: float = 0.0
+    failure_class: str = ""
+    skill_id: str = ""
+    routing_reason: str = ""
+    notes: str = ""
+
+
+@dataclass
+class BenchmarkRunRecord:
+    """Persisted result for one full task run."""
+    run_id: str
+    task_id: str
+    status: TaskStatus
+    started_at: str
+    finished_at: str = ""
+    duration_seconds: float = 0.0
+    problem_type: str = ""
+    domain: str = ""
+    problem_modeling: str = ""
+    final_score: float = 0.0
+    final_model: str = ""
+    failure_class: str = ""
+    real_test_failures: int = 0
+    skills_tried: list[str] = field(default_factory=list)
+    events: list[BenchmarkRunEvent] = field(default_factory=list)
+
+
+@dataclass
 class ResearchOutput:
     """Output from Research Team."""
     skill: Optional[SkillBundle] = None
@@ -164,6 +216,9 @@ class Config:
     max_quick_proposer_iterations: int = 3
     max_research_triggers_same_judger: int = 2
     max_task_experience_entries: int = 2
+    initial_attempt_timeout_seconds: int = 240
+    skill_execution_timeout_seconds: int = 420
+    real_test_timeout_seconds: int = 900
 
     # Models per agent type (loaded from agent_config)
     # Override individual agents via kwargs if needed

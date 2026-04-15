@@ -53,13 +53,13 @@ Analyze why this is failing. Focus on:
 4. Is this a stubborn issue (failed multiple times) or a new failure?
 
 Return a JSON with:
-{
+{{
     "root_cause": "precise description of why it's failing",
     "blocking_issues": ["specific issues blocking success"],
     "suggested_directions": ["potential ways to fix this"],
     "is_stubborn": true/false (if failed 2+ times),
     "problem_type_refinement": "refined problem type if needed"
-}"""
+}}"""
 
     def run(self, task_id: str, problem_type: str, attempt_result: str,
             trace_history: list, judger_feedback: Optional[dict] = None) -> dict:

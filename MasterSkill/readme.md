@@ -5,3 +5,4 @@ The project proposes integrating DeepResearch into the skill creation pipeline, 
 
 - Technical design: `MasterSkill/technical_design.md`
 - Development log: `MasterSkill/development_log.md`
+- SkillsBench task classification: `MasterSkill/skillsbench_task_classification.md`

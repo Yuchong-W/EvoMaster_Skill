@@ -187,6 +187,108 @@ Result:
 
 - first confirmed real SkillsBench pass through the new ChatGPT-account execution architecture
 
+### System Optimization Pass
+
+Focused follow-up based on `technical_design.md` next steps:
+
+- replaced keyword-only execution routing with an explicit `TaskRouter`
+- made the router read `task.toml` difficulty, category, and tags before falling back to task-shape signals
+- fixed a latent routing bug where `DockerExecutor` still referenced nonexistent `skill.content`
+- made executor results return model, reasoning effort, resolved difficulty, routing reason, duration, and failure class
+- added `BenchmarkResultStore` to persist compact run telemetry under `benchmark_runs/`
+- made `BenchmarkRunner` write structured run records with task status, models used, durations, scores, skill IDs, and failure classes
+- hardened `problem_type` refinement so invalid analyzer output no longer crashes the runner
+
+Smoke validation:
+
+- `py_compile` passed for both `MasterSkill/` and `src/icml_research/masterskill/`
+- task router smoke output:
+  - `citation-check` -> `hard`, `gpt-5.4`
+  - `weighted-gdp-calc` -> `medium`, `gpt-5.3-codex`
+  - `civ6-adjacency-optimizer` -> `hard`, `gpt-5.4`
+- benchmark result persistence smoke test wrote a valid latest snapshot under `/tmp/masterskill-result-smoke/latest/demo.json`
+
+### Runtime Validation And Follow-Up Fixes
+
+Real benchmark validation:
+
+- reran `citation-check` with `data_root=/tmp/masterskill-opt-validate`
+- task finished `solved`
+- persisted run record showed:
+  - `final_model = gpt-5.4`
+  - `final_score = 1.0`
+  - `duration_seconds ~= 574.4`
+  - routing reason: `task.toml difficulty=medium; category=research; hard tags present`
+
+Follow-up issue discovered from that run:
+
+- when a task was solved directly by the base model, `BenchmarkRunner.run_task()` returned early before writing `task_experience`
+- this meant solved tasks could be rediscovered as unsolved in later benchmark runs
+
+Fix:
+
+- added `_on_base_model_solved()` to persist:
+  - `task_experience.final_status = solved`
+  - `what_worked = Solved without external skill using <model>`
+  - shallow trace entry with `skill_id = __base_model__`
+
+Validation:
+
+- runner smoke test under `/tmp/masterskill-base-success-smoke` confirmed:
+  - `task_experience` now records solved status for base-model success
+  - shallow trace records `__base_model__`
+  - `benchmark_runs/latest/<task>.json` remains consistent with solved status and final model
+
+Docker supervision note:
+
+- a later `citation-check` rerun showed the container entering test phase and spending significant tail time in `pip3 install --break-system-packages uv`
+- this confirms the runtime chain remains live, but test dependency bootstrap can dominate tail latency even after model execution completes
+
+### Runtime Cost Reduction And Real Skill-Evolution Validation
+
+Additional runtime optimizations:
+
+- added Docker environment image caching keyed by a content hash of `task/environment`
+- added compatibility reuse for older unlabeled `masterskill:<task>` images so existing local cache is not discarded
+- added task-scoped verifier runtime image prewarming from `tests/test.sh` bootstrap commands
+- split execution budgets into:
+  - `initial_attempt_timeout_seconds`
+  - `skill_execution_timeout_seconds`
+  - `real_test_timeout_seconds`
+- reduced internal Codex-agent reasoning pressure:
+  - `gpt-5.2`, `gpt-5.3`, `gpt-5.4` internal agents now use lighter Codex reasoning than the original `xhigh` path
+  - internal Codex calls now use bounded per-model timeouts and a lower-effort retry on timeout
+- fixed unnecessary `uv` installation in `_run_tests()` so it only happens when `test.sh` actually uses `uvx`
+- added executor and agent debug logging behind `MASTERSKILL_DEBUG=1`
+
+Real chain validation on `civ6-adjacency-optimizer`:
+
+- confirmed runtime now reports `legacy image cache hit`, so pre-existing local task images are reused immediately
+- confirmed fail-fast base attempt path:
+  - base `codex exec` timed out under the shortened initial budget
+  - runner continued into post-failure analysis instead of stalling
+- confirmed real skill-evolution loop now executes:
+  - `Analyzer`
+  - `Searcher`
+  - `SkillCreator`
+  - `Critic`
+  - `DockerExecutor.execute_skill()`
+  - `Judger`
+  - `QuickProposer`
+
+Concrete blockers found and fixed from real `civ6` evolution runs:
+
+- `Analyzer.USER_PROMPT` had unescaped JSON braces and crashed on `.format(...)`
+- same prompt-format bug also existed in `Searcher.USER_PROMPT` and `Critic.USER_PROMPT`
+- `QuickProposer` failed under host Codex + ChatGPT login because `gpt-5.1` is unsupported in that route
+- fixed Codex fallback compatibility by mapping `gpt-5.1 -> gpt-5.2` for CLI-backed internal agents
+
+Current status after these fixes:
+
+- MasterSkill is no longer limited to base-model passes
+- the system can now enter and progress through the real research / skill creation / critique / execution / judging loop on a hard task
+- remaining work is about improving task solve rate and iteration quality, not about basic chain breakage
+
 ## Current Environment Snapshot
 
 - host OS path in use: `/home/yuchong`

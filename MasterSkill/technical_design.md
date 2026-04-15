@@ -54,12 +54,14 @@ Three memory surfaces are used:
 - `ShallowMemory`: per-task attempts and recent skill usage
 - `TaskExperienceMemory`: durable task-level outcomes and status
 - `MetaMemoryStore`: reusable effective and ineffective methods grouped by `problem_type::domain::modeling`
+- `BenchmarkResultStore`: compact per-run telemetry for later benchmark analysis
 
 Current implementation requirement:
 
 - memory persistence must round-trip enums and nested dataclasses
 - task records must exist before updates
 - solved skills must be written back to the shallow repository
+- each benchmark run must persist task status, model choice, duration, score, and failure class
 
 ### 3. Runner Layer
 
@@ -88,21 +90,43 @@ The internal planning and evaluation agents are now routed through GPT-5 family 
 Reasoning policy:
 
 - `gpt-5.1` uses `high`
-- `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4` use `xhigh`
+- `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4` use bounded Codex reasoning tuned for runtime cost
 
-This policy exists because `gpt-5.1` rejects `xhigh`.
+Codex CLI compatibility notes:
+
+- ChatGPT-account Codex execution does not support `gpt-5.1`
+- internal Codex-backed calls therefore map `gpt-5.1 -> gpt-5.2`
+- internal agents use shorter bounded timeouts plus a lower-effort retry on timeout to keep research iterations moving
 
 ### Execution Model Routing
 
 The execution agent is set to `auto`.
 
-`DockerExecutor` chooses the execution model by task difficulty:
+`DockerExecutor` now delegates execution routing to `runner/task_router.py`, which builds an explicit `ExecutionPlan` from task metadata plus task shape.
+
+Routing inputs:
+
+- `task.toml` difficulty
+- `task.toml` category
+- `task.toml` tags
+- instruction length
+- output artifact type
+- skill payload size
+
+`TaskRouter` chooses the execution model by resolved task difficulty:
 
 - hard optimization / simulation / citation verification / long tasks -> `gpt-5.4`
 - medium structured tasks -> `gpt-5.3-codex`
 - lighter tasks -> `gpt-5.2` or `gpt-5.1`
 
-Current keyword-based routing lives in `runner/docker_executor.py`.
+Each execution result now also carries:
+
+- chosen model
+- reasoning effort
+- routing reason
+- resolved difficulty
+- execution duration
+- failure class
 
 ## Execution Architecture
 
@@ -121,6 +145,17 @@ Current production route:
 6. Let Codex operate on the running container through `docker exec` and `docker cp`.
 7. Run official tests inside the container.
 8. Return execution log, artifacts, and test output to the runner.
+
+Runtime-cost controls layered onto this route:
+
+- environment image cache keyed by `task/environment` content hash
+- compatibility reuse of older unlabeled local `masterskill:<task>` images
+- task-scoped verifier runtime images for prewarming common `test.sh` dependencies
+- staged time budgets for:
+  - base model attempt
+  - skill execution
+  - official real test
+- debug logging behind `MASTERSKILL_DEBUG=1` for both executor and internal agents
 
 Why this route was accepted:
 
@@ -182,6 +217,13 @@ Current verification strategy is layered:
 3. targeted memory and config smoke tests
 4. direct Docker task execution
 5. official task tests through `run_task()`
+6. fail-fast hard-task validation to confirm the system reaches the research / skill loop instead of stalling in the base attempt
+
+Result artifacts from task runs are persisted under:
+
+- `<data_root>/benchmark_runs/runs.jsonl`
+- `<data_root>/benchmark_runs/tasks/<task_id>.jsonl`
+- `<data_root>/benchmark_runs/latest/<task_id>.json`
 
 Representative benchmark targets used during bring-up:
 
@@ -190,17 +232,25 @@ Representative benchmark targets used during bring-up:
 - `flood-risk-analysis`
 - `citation-check`
 
+Representative runtime validation milestones:
+
+- `citation-check`: confirmed real benchmark pass with persisted run record
+- `civ6-adjacency-optimizer`: confirmed real research loop progression through `Analyzer -> Searcher -> SkillCreator -> Critic -> execute_skill -> Judger -> QuickProposer`
+
 ## Known Limits
 
 - Some SkillsBench tasks have task-side inconsistencies between `solution/solve.sh` and the official tests.
 - Large task images with `libreoffice` or heavy pip installs have long first-run setup time.
 - The execution model still depends on prompt quality and benchmark difficulty; a clean environment does not imply a task pass.
-- `DockerExecutor` currently uses heuristic model routing; this should eventually be replaced with explicit task metadata or a learned router.
+- The current execution router is metadata-driven and explicit, but still rule-based rather than learned.
+- Some verifier scripts still encode task-specific dependency setup patterns that are not yet lifted into reusable runtime prewarm rules.
+- Research-loop quality is now gated more by skill quality and agent prompting than by basic chain breakage.
 
 ## Next Design Work
 
-- Replace keyword-based execution routing with a small explicit difficulty classifier.
 - Cache or prebuild heavy SkillsBench images to reduce repeated environment setup.
 - Move host-Codex helper scripts into a reusable module instead of generating them ad hoc.
-- Add benchmark-result persistence so each task run stores model, duration, score, and failure class.
+- Extend benchmark result persistence with aggregate reports and pass-rate deltas over time.
 - Collapse duplicated legacy/package trees once package entrypoints become the default.
+- Replace the rule-based execution router with either benchmark-supplied routing metadata or a learned router once enough run history exists.
+- Improve the QuickProposer / research loop so hard tasks spend less time on wording-only revisions when execution artifacts show missing-output or timeout failures.

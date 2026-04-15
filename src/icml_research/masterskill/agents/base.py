@@ -3,6 +3,7 @@
 from abc import ABC
 from typing import Any, Optional
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -28,11 +29,17 @@ class BaseAgent(ABC):
         self.base_url = base_url or "https://api.openai.com/v1"
         self.codex_cli = shutil.which("codex")
         self.use_codex_cli = not self.api_key and self._has_codex_auth()
+        self.debug = os.environ.get("MASTERSKILL_DEBUG", "").lower() in {"1", "true", "yes"}
 
         if OpenAI and self.api_key:
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         else:
             self.client = None
+
+    def _log(self, message: str) -> None:
+        """Emit lightweight debug logs when requested."""
+        if self.debug:
+            print(f"[{self.__class__.__name__}] {message}", flush=True)
 
     def _get_default_api_key(self) -> str:
         """Get API key from environment."""
@@ -56,14 +63,33 @@ class BaseAgent(ABC):
             or (auth.get("auth_mode") == "chatgpt" and tokens.get("access_token"))
         )
 
+    def _codex_model(self) -> str:
+        """Select a Codex-compatible model for ChatGPT-account execution."""
+        if self.use_codex_cli and self.model == "gpt-5.1":
+            return "gpt-5.2"
+        return self.model
+
     def _codex_reasoning_effort(self) -> str:
         """Choose a compatible reasoning level for the configured model."""
-        lowered = self.model.lower()
-        if "5.1" in lowered:
+        lowered = self._codex_model().lower()
+        if "5.1" in lowered or "5.2" in lowered:
+            return "high"
+        if "5.3" in lowered:
             return "high"
         if "5.4" in lowered:
-            return "xhigh"
-        return "xhigh"
+            return "high"
+        return "medium"
+
+    def _codex_timeout_seconds(self) -> int:
+        """Choose a bounded timeout for internal Codex agent calls."""
+        lowered = self._codex_model().lower()
+        if "5.1" in lowered or "5.2" in lowered:
+            return 180
+        if "5.3" in lowered:
+            return 240
+        if "5.4" in lowered:
+            return 300
+        return 180
 
     def _normalize_message_content(self, content: Any) -> str:
         if isinstance(content, str):
@@ -94,46 +120,70 @@ class BaseAgent(ABC):
             raise RuntimeError("Codex CLI is not available")
 
         prompt = self._messages_to_prompt(messages)
+        codex_model = self._codex_model()
+        primary_effort = self._codex_reasoning_effort()
+        timeout_seconds = self._codex_timeout_seconds()
+        self._log(
+            f"codex start model={self.model} codex_model={codex_model} "
+            f"effort={primary_effort} timeout={timeout_seconds}s"
+        )
         with tempfile.TemporaryDirectory(prefix="masterskill-codex-") as tmpdir:
             output_file = Path(tmpdir) / "last-message.txt"
-            cmd = [
-                self.codex_cli,
-                "exec",
-                "--ephemeral",
-                "--skip-git-repo-check",
-                "-C",
-                tmpdir,
-                "-s",
-                "read-only",
-                "-c",
-                f'model_reasoning_effort="{self._codex_reasoning_effort()}"',
-                "-m",
-                self.model,
-                "-o",
-                str(output_file),
-                prompt,
-            ]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
+            def run_once(reasoning_effort: str, timeout_seconds: int):
+                cmd = [
+                    self.codex_cli,
+                    "exec",
+                    "--ephemeral",
+                    "--skip-git-repo-check",
+                    "-C",
+                    tmpdir,
+                    "-s",
+                    "read-only",
+                    "-c",
+                    f'model_reasoning_effort="{reasoning_effort}"',
+                    "-m",
+                    codex_model,
+                    "-o",
+                    str(output_file),
+                    prompt,
+                ]
+                return subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_seconds,
+                )
+
+            try:
+                result = run_once(primary_effort, timeout_seconds)
+            except subprocess.TimeoutExpired:
+                fallback_effort = "medium"
+                fallback_timeout = min(timeout_seconds, 120)
+                self._log(
+                    f"codex timeout model={self.model}; retrying with effort={fallback_effort} "
+                    f"timeout={fallback_timeout}s"
+                )
+                result = run_once(fallback_effort, fallback_timeout)
             if result.returncode != 0:
                 error = result.stderr.strip() or result.stdout.strip()
+                self._log(f"codex failed model={self.model} error={error[:200]}")
                 raise RuntimeError(f"Codex CLI call failed: {error}")
             if output_file.exists():
+                self._log(f"codex finished model={self.model}")
                 return output_file.read_text().strip()
+            self._log(f"codex finished model={self.model} (stdout)")
             return result.stdout.strip()
 
     def chat(self, messages: list[dict], **kwargs) -> str:
         """Call LLM with messages."""
         if self.client:
+            self._log(f"sdk start model={self.model}")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 **kwargs
             )
+            self._log(f"sdk finished model={self.model}")
             return response.choices[0].message.content
 
         if self.use_codex_cli:

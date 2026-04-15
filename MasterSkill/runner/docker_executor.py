@@ -3,10 +3,13 @@
 import json
 import os
 import io
+import hashlib
+import re
 import shlex
 import subprocess
 import tarfile
 import tempfile
+import time
 from types import SimpleNamespace
 from pathlib import Path
 from typing import Optional
@@ -17,6 +20,7 @@ except ImportError:
     docker = None
 
 from ..core.types import SkillBundle
+from .task_router import TaskRouter
 
 
 class DockerExecutor:
@@ -37,6 +41,8 @@ class DockerExecutor:
                 "Install it before executing benchmark tasks."
             )
         self.skillsbench_root = Path(skillsbench_root)
+        self.task_router = TaskRouter(skillsbench_root)
+        self.debug = os.environ.get("MASTERSKILL_DEBUG", "").lower() in {"1", "true", "yes"}
         try:
             self.client = docker.from_env()
         except Exception as exc:
@@ -44,6 +50,11 @@ class DockerExecutor:
                 "Docker is not available from this environment. "
                 "Install the Docker SDK and ensure the Docker engine is reachable."
             ) from exc
+
+    def _log(self, message: str) -> None:
+        """Emit lightweight debug logs when requested."""
+        if self.debug:
+            print(f"[DockerExecutor] {message}", flush=True)
 
     def execute_skill(
         self,
@@ -60,8 +71,14 @@ class DockerExecutor:
                 "success": bool,
                 "output_file": str,      # Content of output_path
                 "execution_log": str,    # Terminal output
-                "error": str,           # Error message if any
+                "error": str,            # Error message if any
                 "exit_code": int,
+                "model": str,
+                "reasoning_effort": str,
+                "duration_seconds": float,
+                "difficulty": str,
+                "routing_reason": str,
+                "failure_class": str,
             }
         """
         task_dir = self.skillsbench_root / "tasks" / task_id
@@ -75,6 +92,7 @@ class DockerExecutor:
             }
 
         image_name = f"masterskill:{task_id}"
+        self._log(f"execute_skill task={task_id} image={image_name}")
         self._build_image(task_dir, image_name)
 
         container = None
@@ -84,6 +102,7 @@ class DockerExecutor:
             self._copy_skill(container, skill)
 
             exec_result = self._run_agent(
+                task_id=task_id,
                 container=container,
                 instruction=instruction,
                 skill=skill,
@@ -95,6 +114,11 @@ class DockerExecutor:
             combined_log = execution_log
             if artifact_summary:
                 combined_log += f"\n\n[Output Artifacts]\n{artifact_summary}"
+            failure_class = self._classify_failure(
+                output=combined_log,
+                exit_code=exec_result.exit_code,
+                passed=exec_result.exit_code == 0,
+            )
 
             return {
                 "success": exec_result.exit_code == 0,
@@ -102,6 +126,12 @@ class DockerExecutor:
                 "execution_log": combined_log,
                 "error": "" if exec_result.exit_code == 0 else "Execution failed",
                 "exit_code": exec_result.exit_code,
+                "model": exec_result.model,
+                "reasoning_effort": exec_result.reasoning_effort,
+                "duration_seconds": exec_result.duration_seconds,
+                "difficulty": exec_result.difficulty,
+                "routing_reason": exec_result.routing_reason,
+                "failure_class": failure_class,
             }
         finally:
             if container is not None:
@@ -122,32 +152,59 @@ class DockerExecutor:
                 "score": float,        # 0.0 - 1.0
                 "details": str,        # Test output
                 "exit_code": int,
+                "model": str,
+                "reasoning_effort": str,
+                "execution_duration_seconds": float,
+                "test_duration_seconds": float,
+                "duration_seconds": float,
+                "difficulty": str,
+                "routing_reason": str,
+                "failure_class": str,
             }
         """
         task_dir = self.skillsbench_root / "tasks" / task_id
         test_file = task_dir / "tests" / "test_outputs.py"
         if not test_file.exists():
-            return {"passed": False, "score": 0.0, "details": "Test file not found", "exit_code": -1}
+            return {
+                "passed": False,
+                "score": 0.0,
+                "details": "Test file not found",
+                "exit_code": -1,
+                "model": "",
+                "reasoning_effort": "",
+                "execution_duration_seconds": 0.0,
+                "test_duration_seconds": 0.0,
+                "duration_seconds": 0.0,
+                "difficulty": "",
+                "routing_reason": "",
+                "failure_class": "missing_test_file",
+            }
 
         image_name = f"masterskill:{task_id}"
+        self._log(f"run_real_test task={task_id} image={image_name}")
         self._build_image(task_dir, image_name)
+        runtime_image_name = self._prepare_test_runtime_image(task_id, task_dir, image_name)
+        self._log(f"runtime_image task={task_id} image={runtime_image_name}")
 
         container = None
         try:
-            container = self._start_container(image_name)
+            container = self._start_container(runtime_image_name)
             self._write_instruction(container, instruction)
             if skill is not None:
                 self._copy_skill(container, skill)
             self._copy_tests(container, task_dir)
 
             exec_result = self._run_agent(
+                task_id=task_id,
                 container=container,
                 instruction=instruction,
                 skill=skill,
                 output_path="",
                 timeout=timeout,
             )
+            test_started_at = time.monotonic()
             test_result = self._run_tests(container, timeout)
+            test_duration = time.monotonic() - test_started_at
 
             details = (
                 "[Execution Log]\n"
@@ -156,11 +213,24 @@ class DockerExecutor:
                 + self._decode_output(test_result.output)
             )
             passed = exec_result.exit_code == 0 and test_result.exit_code == 0
+            failure_class = self._classify_failure(
+                output=details,
+                exit_code=test_result.exit_code if exec_result.exit_code == 0 else exec_result.exit_code,
+                passed=passed,
+            )
             return {
                 "passed": passed,
                 "score": 1.0 if passed else 0.0,
                 "details": details,
                 "exit_code": test_result.exit_code,
+                "model": exec_result.model,
+                "reasoning_effort": exec_result.reasoning_effort,
+                "execution_duration_seconds": exec_result.duration_seconds,
+                "test_duration_seconds": test_duration,
+                "duration_seconds": exec_result.duration_seconds + test_duration,
+                "difficulty": exec_result.difficulty,
+                "routing_reason": exec_result.routing_reason,
+                "failure_class": failure_class,
             }
         finally:
             if container is not None:
@@ -200,6 +270,13 @@ class DockerExecutor:
             "execution_log": test_result["details"],
             "error": "" if test_result["passed"] else "Model could not solve autonomously",
             "exit_code": test_result["exit_code"],
+            "model": test_result.get("model", ""),
+            "reasoning_effort": test_result.get("reasoning_effort", ""),
+            "duration_seconds": test_result.get("duration_seconds", 0.0),
+            "difficulty": test_result.get("difficulty", ""),
+            "routing_reason": test_result.get("routing_reason", ""),
+            "failure_class": test_result.get("failure_class", ""),
+            "score": test_result.get("score", 0.0),
         }
 
     def _task_has_dockerfile(self, task_dir: Path) -> bool:
@@ -210,13 +287,28 @@ class DockerExecutor:
         return f"skillsbench:{task_id}"
 
     def _build_image(self, task_dir: Path, image_name: str) -> None:
-        """Build Docker image from Dockerfile."""
+        """Build Docker image from Dockerfile, skipping rebuilds for identical contexts."""
         context_path = task_dir / "environment"
+        context_hash = self._hash_tree(context_path)
+        existing = self._get_image(image_name)
+        if existing:
+            existing_hash = existing.labels.get("masterskill.context_hash")
+            if existing_hash == context_hash:
+                self._log(f"image cache hit image={image_name}")
+                return
+            if not existing_hash:
+                self._log(f"legacy image cache hit image={image_name}")
+                return
+        self._log(f"building image={image_name}")
         self.client.images.build(
             path=str(context_path),
             dockerfile="Dockerfile",
             tag=image_name,
             rm=True,
+            labels={
+                "masterskill.context_hash": context_hash,
+                "masterskill.task_id": task_dir.name,
+            },
         )
 
     def _start_container(self, image_name: str):
@@ -230,18 +322,121 @@ class DockerExecutor:
             cpu_quota=200000,
         )
 
-    def _run_agent(self, container, instruction: str, skill: Optional[SkillBundle], output_path: str, timeout: int):
+    def _prepare_test_runtime_image(self, task_id: str, task_dir: Path, base_image_name: str) -> str:
+        """Build a task-scoped runtime image with common verifier dependencies prewarmed."""
+        test_script = task_dir / "tests" / "test.sh"
+        if not test_script.exists():
+            return base_image_name
+
+        bootstrap = self._extract_test_bootstrap_commands(test_script.read_text())
+        if not bootstrap:
+            self._log(f"no verifier bootstrap needed task={task_id}")
+            return base_image_name
+
+        base_image = self._get_image(base_image_name)
+        if base_image is None:
+            return base_image_name
+
+        setup_hash = hashlib.sha256(
+            ("\n".join(bootstrap) + "\n" + base_image.id).encode("utf-8")
+        ).hexdigest()
+        prepared_image_name = f"masterskill:{task_id}-test-runtime"
+        existing = self._get_image(prepared_image_name)
+        if existing and existing.labels.get("masterskill.test_setup_hash") == setup_hash:
+            self._log(f"test runtime cache hit image={prepared_image_name}")
+            return prepared_image_name
+
+        with tempfile.TemporaryDirectory(prefix=f"masterskill-test-image-{task_id}-") as tmpdir:
+            workspace = Path(tmpdir)
+            dockerfile = workspace / "Dockerfile"
+            dockerfile.write_text(
+                f"FROM {base_image_name}\n"
+                "SHELL [\"/bin/bash\", \"-lc\"]\n"
+                + "".join(f"RUN {command}\n" for command in bootstrap)
+            )
+            self._log(f"building test runtime image={prepared_image_name}")
+            self.client.images.build(
+                path=str(workspace),
+                dockerfile="Dockerfile",
+                tag=prepared_image_name,
+                rm=True,
+                labels={
+                    "masterskill.test_setup_hash": setup_hash,
+                    "masterskill.base_image_id": base_image.id,
+                    "masterskill.task_id": task_id,
+                },
+            )
+        return prepared_image_name
+
+    def _extract_test_bootstrap_commands(self, script_text: str) -> list[str]:
+        """Extract common verifier bootstrap steps that are safe to prewarm."""
+        commands: list[str] = []
+        apt_packages: list[str] = []
+        pip_packages: list[str] = []
+
+        for raw_line in script_text.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            apt_match = re.match(r"apt-get install -y (.+)", line)
+            if apt_match:
+                apt_packages.extend(pkg for pkg in apt_match.group(1).split() if pkg)
+                continue
+            pip_match = re.match(r"pip3 install(?: --break-system-packages)? (.+)", line)
+            if pip_match:
+                tail = pip_match.group(1)
+                if "&&" not in tail and "||" not in tail:
+                    pip_packages.extend(pkg for pkg in tail.split() if pkg)
+
+        if apt_packages:
+            unique_packages = " ".join(dict.fromkeys(apt_packages))
+            commands.append(f"apt-get update && apt-get install -y {unique_packages}")
+
+        if "uvx" in script_text:
+            commands.append(
+                "if ! command -v uvx >/dev/null 2>&1; then "
+                "if command -v pip3 >/dev/null 2>&1; then "
+                "pip3 install --break-system-packages uv || pip3 install uv; "
+                "fi; "
+                "fi"
+            )
+
+        if pip_packages:
+            unique_packages = " ".join(dict.fromkeys(pip_packages))
+            commands.append(
+                f"if command -v pip3 >/dev/null 2>&1; then "
+                f"pip3 install --break-system-packages {unique_packages} || pip3 install {unique_packages}; "
+                "fi"
+            )
+
+        return commands
+
+    def _run_agent(
+        self,
+        task_id: str,
+        container,
+        instruction: str,
+        skill: Optional[SkillBundle],
+        output_path: str,
+        timeout: int,
+    ):
         """Run host-side Codex and let it operate on the task container via docker exec/cp."""
         from ..agent_config import get_agent_params
 
         exec_cfg = get_agent_params("execution")
-        model = self._resolve_execution_model(
-            exec_cfg.get("model", "auto"),
+        execution_plan = self._build_execution_plan(
+            task_id=task_id,
+            configured_model=exec_cfg.get("model", "auto"),
             instruction=instruction,
             skill=skill,
             output_path=output_path,
         )
+        model = execution_plan.preferred_model
         reasoning_effort = self._resolve_codex_reasoning_effort(model)
+        self._log(
+            f"agent task={task_id} model={model} difficulty={execution_plan.difficulty.value} "
+            f"reason={' | '.join(execution_plan.reasons)}"
+        )
         cli_path = exec_cfg.get("cli_path", "/usr/local/bin/codex")
         timeout_sec = min(timeout, exec_cfg.get("timeout", 600))
         with tempfile.TemporaryDirectory(prefix="masterskill-host-exec-") as tmpdir:
@@ -265,7 +460,9 @@ class DockerExecutor:
                 str(last_message_path),
                 prompt,
             ]
+            started_at = time.monotonic()
             try:
+                self._log(f"codex exec start task={task_id}")
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
@@ -276,6 +473,7 @@ class DockerExecutor:
                 if result.stderr:
                     output = f"{output}\n{result.stderr}" if output else result.stderr
                 exit_code = result.returncode
+                self._log(f"codex exec finished task={task_id} exit_code={exit_code}")
             except subprocess.TimeoutExpired as exc:
                 output = exc.stdout or ""
                 stderr = exc.stderr or ""
@@ -287,6 +485,8 @@ class DockerExecutor:
                     output = f"{output}\n{stderr}" if output else stderr
                 output = f"{output}\nExecution timed out." if output else "Execution timed out."
                 exit_code = 124
+                self._log(f"codex exec timed out task={task_id}")
+            duration_seconds = time.monotonic() - started_at
             if last_message_path.exists():
                 last_message = last_message_path.read_text().strip()
                 if last_message:
@@ -294,6 +494,11 @@ class DockerExecutor:
             return SimpleNamespace(
                 output=output.encode("utf-8", errors="replace"),
                 exit_code=exit_code,
+                model=model,
+                reasoning_effort=reasoning_effort,
+                duration_seconds=duration_seconds,
+                difficulty=execution_plan.difficulty.value,
+                routing_reason="; ".join(execution_plan.reasons),
             )
 
     def _build_prompt(self, instruction: str, skill: Optional[SkillBundle], output_path: str) -> str:
@@ -352,13 +557,28 @@ class DockerExecutor:
             ).output
         ).strip() == "yes"
         if has_test_script:
+            self._log("running task test.sh")
+            needs_uvx = self._decode_output(
+                container.exec_run(
+                    ["bash", "-lc", "if grep -q 'uvx' /tests/test.sh; then echo yes; else echo no; fi"],
+                    demux=False,
+                    stream=False,
+                    tty=False,
+                    environment={},
+                ).output
+            ).strip() == "yes"
+            uv_bootstrap = ""
+            if needs_uvx:
+                uv_bootstrap = (
+                    "if ! command -v uvx >/dev/null 2>&1; then "
+                    "if command -v pip3 >/dev/null 2>&1; then "
+                    "pip3 install --break-system-packages uv || pip3 install uv || true; "
+                    "fi; "
+                    "fi && "
+                )
             test_cmd = (
-                "chmod +x /tests/test.sh && "
-                "if ! command -v uvx >/dev/null 2>&1; then "
-                "if command -v pip3 >/dev/null 2>&1; then "
-                "pip3 install --break-system-packages uv || pip3 install uv || true; "
-                "fi; "
-                "fi && "
+                "chmod +x /tests/test.sh && " +
+                uv_bootstrap +
                 f"timeout {int(timeout)}s /tests/test.sh 2>&1"
             )
             return container.exec_run(
@@ -368,6 +588,7 @@ class DockerExecutor:
                 tty=False,
                 environment={},
             )
+        self._log("running pytest fallback")
         return container.exec_run(
             ["bash", "-lc", f"timeout {int(timeout)}s python3 -m pytest /tests/test_outputs.py -v 2>&1"],
             demux=False,
@@ -433,6 +654,21 @@ class DockerExecutor:
         path.write_text(content)
         if executable:
             path.chmod(0o755)
+
+    def _get_image(self, image_name: str):
+        """Return an image by name if it exists."""
+        try:
+            return self.client.images.get(image_name)
+        except Exception:
+            return None
+
+    def _hash_tree(self, root: Path) -> str:
+        """Hash a directory tree to detect environment changes."""
+        digest = hashlib.sha256()
+        for path in sorted(p for p in root.rglob("*") if p.is_file()):
+            digest.update(str(path.relative_to(root)).encode("utf-8"))
+            digest.update(path.read_bytes())
+        return digest.hexdigest()
 
     def _make_tar_from_disk(self, source_path: Path, arcname: str) -> bytes:
         tar_buffer = io.BytesIO()
@@ -504,55 +740,44 @@ class DockerExecutor:
             return "xhigh"
         return "xhigh"
 
-    def _resolve_execution_model(
+    def _build_execution_plan(
         self,
+        task_id: str,
         configured_model: str,
         instruction: str = "",
         skill: Optional[SkillBundle] = None,
         output_path: str = "",
-    ) -> str:
-        """Pick a GPT-5 family model based on task difficulty."""
+    ):
+        """Build an explicit execution plan."""
+        plan = self.task_router.build_plan(
+            task_id=task_id,
+            instruction=instruction,
+            output_path=output_path,
+            skill=skill,
+        )
         if configured_model and configured_model != "auto":
-            return configured_model
+            plan.preferred_model = configured_model
+            plan.reasons.append(f"execution config override={configured_model}")
+        return plan
 
-        text = f"{instruction}\n{output_path}".lower()
-        hard_keywords = (
-            "optimiz",
-            "proof",
-            "simulation",
-            "crystallographic",
-            "quantum",
-            "fuzz",
-            "compiler",
-            "video",
-            "planning",
-            "adjacency",
-            "power-flow",
-            "docking",
-            "citation",
-            "bibtex",
-            "bibliograph",
-            "hallucinated citation",
-        )
-        medium_keywords = (
-            "excel",
-            "xlsx",
-            "spreadsheet",
-            "csv",
-            "table",
-            "debug",
-            "migration",
-            "analysis",
-            "report",
-            "json",
-        )
+    def _classify_failure(self, output: str, exit_code: int, passed: bool) -> str:
+        """Classify the main failure type from execution and test logs."""
+        if passed:
+            return ""
 
-        if any(keyword in text for keyword in hard_keywords):
-            return "gpt-5.4"
-        if len(instruction) > 3000 or (skill and (skill.scripts or len(skill.content) > 2000)):
-            return "gpt-5.4"
-        if any(keyword in text for keyword in medium_keywords) or len(instruction) > 1400:
-            return "gpt-5.3-codex"
-        if len(instruction) > 700:
-            return "gpt-5.2"
-        return "gpt-5.1"
+        lowered = output.lower()
+        if exit_code == 124 or "timed out" in lowered:
+            return "timeout"
+        if "dockerfile not found" in lowered:
+            return "missing_dockerfile"
+        if "test file not found" in lowered:
+            return "missing_test_file"
+        if "permission denied" in lowered:
+            return "permission_error"
+        if "no module named" in lowered or "command not found" in lowered or "uvx" in lowered:
+            return "environment_dependency_missing"
+        if "assertionerror" in lowered or " failed" in lowered or "traceback" in lowered:
+            return "test_failure"
+        if exit_code != 0:
+            return "execution_failed"
+        return "unknown_failure"

@@ -55,12 +55,12 @@ Search for solutions to this problem. Focus on:
 3. Domain-specific knowledge or tools
 
 Return a JSON with:
-{
+{{
     "search_summary": "What you found",
     "new_methods_found": ["list of new potential methods"],
     "relevant_knowledge": ["key knowledge points"],
     "recommended_approach": "which approach seems most promising and why"
-}"""
+}}"""
 
     def run(self, problem_description: str, problem_type: str, domain: str,
             problem_modeling: str, memory_context: dict) -> dict:

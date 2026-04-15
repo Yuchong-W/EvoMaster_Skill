@@ -50,12 +50,12 @@ Be strict but fair. Better to reject trivial changes than accept non-improvement
 Determine if the NEW submission is meaningfully different from OLD.
 
 Return a JSON with:
-{
+{{
     "approved": true/false,
     "reason": "why it was approved or rejected",
     "substantive_changes": ["list of actual new contributions"],
     "rejection_reason": "if rejected, why (e.g., 'mere rephrasing')"
-}"""
+}}"""
 
     def run(self, old_submission: dict, new_submission: dict) -> dict:
         """Evaluate if change is meaningful."""
