@@ -64,5 +64,22 @@
       "post_solve_optimization: tokens 1684133 -> 1394607; skill_md_size regressed 4470 -> 5409",
       "post_solve_optimization: duration 406.82s -> 343.18s; tokens 1394607 -> 1033712"
     ]
+  },
+  "tool_bottleneck::web-performance::optimization": {
+    "problem_type": "tool_bottleneck",
+    "domain": "web-performance",
+    "problem_modeling": "optimization",
+    "effective_methods": [],
+    "ineffective_methods": [
+      {
+        "method_id": "unknown",
+        "description": "problem_type=tool_bottleneck, domain=web-performance, modeling=optimization",
+        "failed_tasks": [
+          "react-performance-debugging"
+        ],
+        "failure_reason": "Could not solve within limits"
+      }
+    ],
+    "success_factors": []
   }
 }
