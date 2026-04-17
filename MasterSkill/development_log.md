@@ -722,3 +722,7 @@ To widen the zero-pass active pool without pulling in network-auth tasks, copied
 Current local case pool size:
 
 - 15 hard cases under active local evolution
+
+### 2026-04-17 23:46 CST Overnight run started
+
+- branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260417_234600.log
