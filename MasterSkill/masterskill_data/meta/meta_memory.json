@@ -81,5 +81,22 @@
       }
     ],
     "success_factors": []
+  },
+  "knowledge_bottleneck::ml/nlp::generation": {
+    "problem_type": "knowledge_bottleneck",
+    "domain": "ml/nlp",
+    "problem_modeling": "generation",
+    "effective_methods": [],
+    "ineffective_methods": [
+      {
+        "method_id": "unknown",
+        "description": "problem_type=knowledge_bottleneck, domain=ml/nlp, modeling=generation",
+        "failed_tasks": [
+          "taxonomy-tree-merge"
+        ],
+        "failure_reason": "Could not solve within limits"
+      }
+    ],
+    "success_factors": []
   }
 }
