@@ -1,32 +1,32 @@
 {
-  "run_id": "adb76dc6489d",
+  "run_id": "f754362d87e6",
   "task_id": "taxonomy-tree-merge",
   "status": "abandoned",
-  "started_at": "2026-04-17T13:58:33.789689+00:00",
-  "finished_at": "2026-04-17T14:08:47.058082+00:00",
-  "duration_seconds": 653.9842758190001,
+  "started_at": "2026-04-17T16:04:17.607288+00:00",
+  "finished_at": "2026-04-17T17:27:21.441335+00:00",
+  "duration_seconds": 5440.698454790001,
   "problem_type": "knowledge_bottleneck",
   "domain": "ml/nlp",
   "problem_modeling": "generation",
   "final_score": 0.0,
-  "final_model": "",
-  "failure_class": "builderror",
+  "final_model": "gpt-5.4",
+  "failure_class": "timeout",
   "real_test_failures": 0,
   "skills_tried": [],
   "events": [
     {
-      "stage": "runner_exception",
+      "stage": "base_attempt",
       "passed": false,
-      "model": "",
+      "model": "gpt-5.4",
       "score": 0.0,
-      "duration_seconds": 0.0,
-      "failure_class": "builderror",
+      "duration_seconds": 698.7736528500009,
+      "failure_class": "timeout",
       "skill_id": "",
-      "routing_reason": "",
+      "routing_reason": "task.toml difficulty=hard; moderate instruction length",
       "input_tokens": 0,
       "cached_input_tokens": 0,
       "output_tokens": 0,
-      "notes": "The command '/bin/sh -c timeout 180s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 180s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl git build-essential g++ && rm -rf /var/lib/apt/lists/*' returned a non-zero code: 124"
+      "notes": "Model could not solve autonomously"
     }
   ]
 }

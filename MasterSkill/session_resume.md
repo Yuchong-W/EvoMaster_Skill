@@ -166,3 +166,5 @@ find masterskill_data_pre_evolution/benchmark_runs/latest -maxdepth 1 -name '*.j
 - [2026-04-17 23:46 CST] Overnight run started on branch `overnight-masterskill-recovery`; log file: `/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260417_234632.log`
 
 - [2026-04-18 00:04 CST] baseline react-performance-debugging -> exit_code=0; run_id=d7c1a7b52e6a | status=abandoned | failure_class=builderror | duration_seconds=1147.1781633839992 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+- [2026-04-18 01:27 CST] baseline taxonomy-tree-merge -> exit_code=0; run_id=f754362d87e6 | status=abandoned | failure_class=timeout | duration_seconds=5440.698454790001 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
