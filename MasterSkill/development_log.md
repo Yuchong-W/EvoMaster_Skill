@@ -770,3 +770,7 @@ Current local case pool size:
 ### 2026-04-18 06:03 CST baseline taxonomy-tree-merge
 
 - exit_code=0; run_id=b6d17e15ea59 | status=abandoned | failure_class=timeout | duration_seconds=714.0765244359973 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 06:19 CST current react-performance-debugging
+
+- exit_code=0; run_id=8937b3fc9cfa | status=abandoned | failure_class=builderror | duration_seconds=1030.2050966940042 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
