@@ -190,3 +190,5 @@ find masterskill_data_pre_evolution/benchmark_runs/latest -maxdepth 1 -name '*.j
 - [2026-04-18 06:28 CST] current taxonomy-tree-merge -> exit_code=0; run_id=0d41770db6a4 | status=abandoned | failure_class=apierror | duration_seconds=599.8123059920035 | final_model= | final_score=0.0 | last_event=runner_exception | notes=500 Server Error for http+docker://localhost/v1.54/containers/b65ca3f09d4eb1bc542a1d9e6c6e22a19fea865da8d03f5efb1496ed3fc642e2/archive?path=%2Froot%2F.cache%2Fhuggingface%2Fhub%2Fmodels--sentence-transformers--all-MiniLM-L6-v2%2Fsnapshot...
 
 - [2026-04-18 06:53 CST] baseline react-performance-debugging -> exit_code=0; run_id=2c3bfe0bef93 | status=abandoned | failure_class=timeout | duration_seconds=1638.8500706439954 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+- [2026-04-18 07:04 CST] baseline taxonomy-tree-merge -> exit_code=0; run_id=2381b58f446c | status=abandoned | failure_class=timeout | duration_seconds=720.1362161819998 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
