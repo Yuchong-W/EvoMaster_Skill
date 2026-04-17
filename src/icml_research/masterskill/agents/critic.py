@@ -34,6 +34,9 @@ Reject if:
 - Just rephrasing the same idea
 - No concrete changes
 - "Grinding" (minor tweaks without substance)
+- The new skill is diagnostic-only and still lacks a plausible solve path
+- The new script only validates inputs, prints metadata, or inspects files without
+  materially advancing task completion
 
 Be strict but fair. Better to reject trivial changes than accept non-improvements."""
 
@@ -48,6 +51,7 @@ Be strict but fair. Better to reject trivial changes than accept non-improvement
 ## Your Evaluation
 
 Determine if the NEW submission is meaningfully different from OLD.
+Also judge whether the NEW submission is operationally useful, not merely diagnostic.
 
 Return a JSON with:
 {{

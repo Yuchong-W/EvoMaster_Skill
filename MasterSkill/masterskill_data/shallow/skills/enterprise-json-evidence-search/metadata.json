@@ -1,0 +1,8 @@
+{
+  "skill_id": "enterprise-json-evidence-search",
+  "name": "Enterprise JSON Evidence Search",
+  "status": "draft",
+  "description": "Answers multi-question enterprise dataset queries by doing narrow local evidence search over /root/DATA and writing a strict /root/answer.json with list-normalized answers and per-question token strings.",
+  "trigger_condition": "Use when a task provides a local enterprise corpus plus a question file and requires exact JSON output at a fixed path, especially when answers require multi-hop lookup across docs, chats, meetings, PRs, or directories.",
+  "usage": "1. Read only /root/question.txt first and extract every question key.\n2. For each question, identify the minimum unique anchors to search for: people, teams, projects, dates, repo names, ticket IDs, products, or phrases.\n3. Search /root/DATA with narrow local queries first (prefer filename and keyword filtering); do not load large files or broad corpus chunks unless the first pass leaves ambiguity.\n4. Follow only the top candidate artifacts and do second-hop lookup only when needed to connect an entity to the requested field.\n5. Before finalizing, explicitly disambiguate similar names, products, or organizations so evidence stays on the same entity/thread.\n6. Normalize every answer to a list of strings, even for one item.\n7. Build /root/answer.json in this exact shape: {\"q1\":{\"answer\":[\"...\"],\"tokens\":\"...\"}, ...}. Tokens must always be a string for every question.\n8. Write the JSON file before ending, and validate that all question keys exist, every answer is a list, and every tokens value is a string."
+}

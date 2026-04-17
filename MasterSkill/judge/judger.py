@@ -126,7 +126,7 @@ blocking rather than letting a potentially wrong result waste a real test."""
                 problem_description=problem_description,
                 instruction=instruction[:2000],  # Limit length
                 skill_description=skill_description[:1000],
-                execution_result=execution_result[:3000],
+                execution_result=self._compact_execution_result(execution_result),
                 test_info=test_info or "No test info available.",
             ) + criteria_section}
         ]
@@ -150,6 +150,15 @@ blocking rather than letting a potentially wrong result waste a real test."""
                 recommendation="proceed_to_real_test",
                 confidence=0.3,
             )
+
+    def _compact_execution_result(self, execution_result: str, limit: int = 4200) -> str:
+        """Keep both the opening actions and final artifacts visible to the Judger."""
+        if len(execution_result) <= limit:
+            return execution_result
+
+        head = execution_result[: limit // 2].rstrip()
+        tail = execution_result[-(limit // 2):].lstrip()
+        return f"{head}\n\n...[snip]...\n\n{tail}"
 
     def build_judger_criteria(self, task_id: str, problem_description: str,
                                instruction: str, historical_failures: list[dict]) -> dict:

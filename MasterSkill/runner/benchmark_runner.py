@@ -1,5 +1,6 @@
 """Benchmark Runner - orchestrates the full benchmark workflow."""
 
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -141,14 +142,30 @@ class BenchmarkRunner:
                 duration_seconds=attempt_result.get("duration_seconds", 0.0),
                 failure_class=attempt_result.get("failure_class", ""),
                 routing_reason=attempt_result.get("routing_reason", ""),
+                input_tokens=attempt_result.get("input_tokens", 0),
+                cached_input_tokens=attempt_result.get("cached_input_tokens", 0),
+                output_tokens=attempt_result.get("output_tokens", 0),
                 notes=attempt_result.get("error", ""),
             )
             if attempt_result.get("success"):
-                self._on_base_model_solved(task_id, context, attempt_result)
+                if not self.config.stop_after_base_attempt:
+                    self._on_base_model_solved(task_id, context, attempt_result)
+                    self._maybe_optimize_after_success(
+                        context=context,
+                        baseline_result=attempt_result,
+                        baseline_skill=None,
+                        run_record=run_record,
+                    )
                 status = TaskStatus.SOLVED
                 run_record.final_score = 1.0
                 run_record.final_model = attempt_result.get("model", "")
                 return status
+
+            if self.config.stop_after_base_attempt:
+                run_record.failure_class = attempt_result.get("failure_class", "")
+                run_record.final_model = attempt_result.get("model", "")
+                run_record.final_score = attempt_result.get("score", 0.0)
+                return TaskStatus.ABANDONED
 
             failure_analysis = self.analyzer.run(
                 task_id=task_id,
@@ -177,10 +194,29 @@ class BenchmarkRunner:
                     skill_ids_tried.add(skill.skill_id)
                     result = self._try_skill(context, skill)
                     real_result = result.get("real_test_result")
+                    self._record_attempt(
+                        context=context,
+                        skill=skill,
+                        judger_feedback=result.get("feedback"),
+                        real_test_passed=real_result.get("passed") if real_result else None,
+                        quick_proposer_iterations=0,
+                        research_triggered=False,
+                        note=real_result.get("details", "") if real_result else "",
+                        duration_seconds=real_result.get("duration_seconds", 0.0) if real_result else 0.0,
+                        input_tokens=real_result.get("input_tokens", 0) if real_result else 0,
+                        cached_input_tokens=real_result.get("cached_input_tokens", 0) if real_result else 0,
+                        output_tokens=real_result.get("output_tokens", 0) if real_result else 0,
+                    )
                     if real_result:
                         self._append_real_test_event(run_record, skill.skill_id, real_result)
                     if result.get("passed"):
                         self._on_task_solved(task_id, context, skill)
+                        self._maybe_optimize_after_success(
+                            context=context,
+                            baseline_result=real_result or {},
+                            baseline_skill=skill,
+                            run_record=run_record,
+                        )
                         status = TaskStatus.SOLVED
                         run_record.final_score = 1.0
                         run_record.final_model = real_result.get("model", "") if real_result else ""
@@ -200,10 +236,29 @@ class BenchmarkRunner:
                 if judger_result.passed:
                     judger_research_triggers = 0
                     real_result = self._run_real_test(context, current_skill)
+                    self._record_attempt(
+                        context=context,
+                        skill=current_skill,
+                        judger_feedback=judger_result,
+                        real_test_passed=real_result.get("passed"),
+                        quick_proposer_iterations=0,
+                        research_triggered=True,
+                        note=real_result.get("details", ""),
+                        duration_seconds=real_result.get("duration_seconds", 0.0),
+                        input_tokens=real_result.get("input_tokens", 0),
+                        cached_input_tokens=real_result.get("cached_input_tokens", 0),
+                        output_tokens=real_result.get("output_tokens", 0),
+                    )
                     self._append_real_test_event(run_record, current_skill.skill_id, real_result)
 
                     if real_result.get("passed"):
                         self._on_task_solved(task_id, context, current_skill)
+                        self._maybe_optimize_after_success(
+                            context=context,
+                            baseline_result=real_result,
+                            baseline_skill=current_skill,
+                            run_record=run_record,
+                        )
                         status = TaskStatus.SOLVED
                         run_record.final_score = real_result.get("score", 0.0)
                         run_record.final_model = real_result.get("model", "")
@@ -229,24 +284,38 @@ class BenchmarkRunner:
                     continue
 
                 quick_proposer_iterations = 0
-                while quick_proposer_iterations < self.config.max_quick_proposer_iterations:
-                    judger_feedback_history.append(judger_result.to_dict())
-                    skill_summary_history.append(
-                        f"Skill: {current_skill.name}, iterations: {quick_proposer_iterations}"
-                    )
-
-                    current_skill = self.quick_proposer.propose_fix(
-                        current_skill,
-                        judger_result,
-                        self.shallow_memory.get_trace(task_id)
-                    )
-                    skill_ids_tried.add(current_skill.skill_id)
-                    quick_proposer_iterations += 1
-                    judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
-
-                    if judger_result.passed:
+                if self._should_use_quick_proposer(judger_result):
+                    while quick_proposer_iterations < self.config.max_quick_proposer_iterations:
                         judger_feedback_history.append(judger_result.to_dict())
-                        break
+                        skill_summary_history.append(
+                            f"Skill: {current_skill.name}, iterations: {quick_proposer_iterations}"
+                        )
+
+                        current_skill = self.quick_proposer.propose_fix(
+                            current_skill,
+                            judger_result,
+                            self.shallow_memory.get_trace(task_id)
+                        )
+                        skill_ids_tried.add(current_skill.skill_id)
+                        quick_proposer_iterations += 1
+                        judger_result = self._evaluate_with_judger(context, current_skill, current_judger_criteria)
+
+                        if judger_result.passed:
+                            judger_feedback_history.append(judger_result.to_dict())
+                            break
+
+                self._record_attempt(
+                    context=context,
+                    skill=current_skill,
+                    judger_feedback=judger_result,
+                    real_test_passed=None,
+                    quick_proposer_iterations=quick_proposer_iterations,
+                    research_triggered=True,
+                    duration_seconds=0.0,
+                    input_tokens=0,
+                    cached_input_tokens=0,
+                    output_tokens=0,
+                )
 
                 if not judger_result.passed:
                     judger_research_triggers += 1
@@ -275,6 +344,18 @@ class BenchmarkRunner:
             if context:
                 self._on_task_abandoned(task_id, context)
             return TaskStatus.ABANDONED
+        except Exception as exc:
+            run_record.failure_class = self._classify_unhandled_exception(exc)
+            if context:
+                self._on_task_abandoned(task_id, context)
+            self._append_run_event(
+                run_record,
+                stage="runner_exception",
+                passed=False,
+                failure_class=run_record.failure_class,
+                notes=str(exc),
+            )
+            return TaskStatus.ABANDONED
         finally:
             run_record.status = status
             run_record.real_test_failures = real_test_failures
@@ -293,11 +374,13 @@ class BenchmarkRunner:
     def _model_attempt(self, context: TaskContext) -> dict:
         """Run model on task without skill (initial attempt)."""
         # Run the task without any skill to see if model can solve it
+        timeout_seconds = self._initial_attempt_timeout_seconds(context)
         result = self.docker.run_task(
             task_id=context.task_id,
             instruction=context.instruction_md,
             output_path=context.output_path,
-            timeout=self.config.initial_attempt_timeout_seconds,
+            timeout=timeout_seconds,
+            include_task_local_skills=self.config.base_attempt_include_task_skills,
         )
 
         return {
@@ -309,7 +392,33 @@ class BenchmarkRunner:
             "duration_seconds": result.get("duration_seconds", 0.0),
             "routing_reason": result.get("routing_reason", ""),
             "failure_class": result.get("failure_class", ""),
+            "input_tokens": result.get("input_tokens", 0),
+            "cached_input_tokens": result.get("cached_input_tokens", 0),
+            "output_tokens": result.get("output_tokens", 0),
         }
+
+    def _initial_attempt_timeout_seconds(self, context: TaskContext) -> int:
+        """Choose a practical base-attempt timeout from config plus task metadata.
+
+        Hard tasks can legitimately need longer uninterrupted execution time than the
+        generic exploratory default. When task metadata already provides an agent
+        timeout budget, prefer that budget within the system-wide real-test ceiling.
+        """
+        timeout_seconds = int(self.config.initial_attempt_timeout_seconds)
+        task_toml = context.task_toml or {}
+
+        agent_timeout = task_toml.get("agent", {}).get("timeout_sec")
+        if agent_timeout is not None:
+            try:
+                timeout_seconds = max(timeout_seconds, int(float(agent_timeout)))
+            except (TypeError, ValueError):
+                pass
+
+        difficulty = str(task_toml.get("metadata", {}).get("difficulty", "")).lower()
+        if difficulty == "hard":
+            timeout_seconds = max(timeout_seconds, 420)
+
+        return min(timeout_seconds, int(self.config.real_test_timeout_seconds))
 
     def _load_task_context(self, task_id: str) -> Optional[TaskContext]:
         """Load task context from SkillsBench and analyze it."""
@@ -341,7 +450,8 @@ class BenchmarkRunner:
             task_toml=task_toml,
             tests_dir=tests_dir,
             environment_dir=environment_dir,
-            output_path="",
+            bundled_skills_summary=self._summarize_bundled_task_skills(task_id),
+            output_path=self._infer_primary_output_path(instruction_md),
             execution_log_path="/tmp/execution.log",
             problem_type=analysis["problem_type"],
             domain=analysis["domain"],
@@ -361,10 +471,19 @@ class BenchmarkRunner:
         Reuse condition: problem_type + domain + modeling all match or highly overlap.
         This is called when a new task fails and we want to try existing skills first.
         """
-        if not context.problem_type:
-            return []
+        skills: list[SkillBundle] = []
+        seen: set[str] = set()
 
-        # Query meta memory for transferable skills
+        for skill_id in self._ordered_task_skill_ids(context):
+            skill = self.skill_repo.load_skill(context.task_id, skill_id)
+            if not skill or skill.skill_id in seen:
+                continue
+            skills.append(skill)
+            seen.add(skill.skill_id)
+
+        if not context.problem_type:
+            return skills
+
         transferable = self.meta_memory.get_transferable_skills(
             problem_type=context.problem_type,
             domain=context.domain or "general",
@@ -372,14 +491,93 @@ class BenchmarkRunner:
             min_transferability="medium",
         )
 
-        skills = []
         for method in transferable:
-            # Load the actual skill from shallow memory
             skill = self.shallow_memory.get_skill(method.method_id)
-            if skill:
-                skills.append(skill)
+            if not skill or skill.skill_id in seen:
+                continue
+            skills.append(skill)
+            seen.add(skill.skill_id)
 
         return skills
+
+    def _ordered_task_skill_ids(self, context: TaskContext) -> list[str]:
+        """Order task-local bundled skills, prioritizing task metadata requirements."""
+        available = self.skill_repo.list_task_skills(context.task_id)
+        if not available:
+            return []
+
+        metadata = context.task_toml.get("metadata", {}) if context.task_toml else {}
+        required = [
+            str(skill_id).strip()
+            for skill_id in metadata.get("required_skills", [])
+            if str(skill_id).strip()
+        ]
+        if not required:
+            return available
+
+        normalized_available = {self._normalize_skill_name(skill_id): skill_id for skill_id in available}
+        prioritized: list[str] = []
+        seen: set[str] = set()
+
+        for required_skill in required:
+            normalized = self._normalize_skill_name(required_skill)
+            matched = normalized_available.get(normalized)
+            if matched and matched not in seen:
+                prioritized.append(matched)
+                seen.add(matched)
+
+        for skill_id in available:
+            if skill_id not in seen:
+                prioritized.append(skill_id)
+                seen.add(skill_id)
+
+        return prioritized
+
+    def _normalize_skill_name(self, value: str) -> str:
+        """Normalize skill identifiers for matching task metadata to directories."""
+        return "".join(ch for ch in value.lower() if ch.isalnum())
+
+    def _infer_primary_output_path(self, instruction_md: str) -> str:
+        """Infer the main output artifact path from the task instruction."""
+        absolute_paths = re.findall(
+            r"(/(?:root|app|output|results|workspace|work|tmp|home)[^\s'\"`()<>]+)",
+            instruction_md,
+        )
+        preferred_absolute = [
+            path for path in absolute_paths
+            if self._looks_like_output_artifact(path)
+        ]
+        if preferred_absolute:
+            return preferred_absolute[0]
+
+        lowered = instruction_md.lower()
+        bare_matches = re.finditer(
+            r"(?:write .*? to|save(?: your result| the result| result| answers)?(?: to| as)|output .*? in)\s+[`'\"]?([a-z0-9_./-]+\.(?:xlsx|csv|json|txt|md|ass|rttm|mp4))",
+            lowered,
+        )
+        for match in bare_matches:
+            candidate = match.group(1).strip()
+            if self._looks_like_output_artifact(candidate):
+                return candidate
+
+        return ""
+
+    def _looks_like_output_artifact(self, path: str) -> bool:
+        """Heuristic to distinguish result artifacts from task inputs."""
+        lowered = path.lower()
+        output_markers = (
+            "output", "answer", "result", "report", "annotation", "taxonomy",
+            "subtitle", "diarization", "recovered", "detection",
+        )
+        input_markers = (
+            "input", "background", "question", "problem.json", "data/",
+            "domain", "problem", "paper.pdf", "source",
+        )
+        if any(marker in lowered for marker in input_markers):
+            return False
+        if any(marker in lowered for marker in output_markers):
+            return True
+        return lowered.endswith((".xlsx", ".csv", ".json", ".txt", ".md", ".ass", ".rttm", ".mp4"))
 
     def _try_skill(self, context: TaskContext, skill: SkillBundle) -> dict:
         """Try an existing skill on a task.
@@ -426,6 +624,7 @@ class BenchmarkRunner:
             "previously_tried": previously_tried,
             "ineffective_methods": ineffective_methods,
             "effective_methods": effective_methods_summary,
+            "bundled_task_skills": context.bundled_skills_summary or "No bundled task skills found.",
         }
 
         suggested_directions = analysis.get("suggested_directions", [])
@@ -456,6 +655,7 @@ class BenchmarkRunner:
                 search_summary=search_result.get("search_summary", ""),
             ),
             effective_methods=effective_methods,
+            bundled_task_skills=context.bundled_skills_summary,
         )
 
         # Critic reviews
@@ -523,6 +723,161 @@ class BenchmarkRunner:
             result += f"- {method.method_id}: {method.description} (transferability: {method.transferability})\n"
         return result
 
+    def _summarize_bundled_task_skills(self, task_id: str) -> str:
+        """Summarize skills already bundled with a task."""
+        task_toml = {}
+        toml_path = Path(self.config.skillsbench_root) / "tasks" / task_id / "task.toml"
+        if toml_path.exists():
+            try:
+                import tomllib
+                task_toml = tomllib.loads(toml_path.read_text())
+            except Exception:
+                task_toml = {}
+
+        metadata = task_toml.get("metadata", {})
+        required = [
+            str(skill_id).strip()
+            for skill_id in metadata.get("required_skills", [])
+            if str(skill_id).strip()
+        ]
+        required_normalized = {self._normalize_skill_name(skill_id) for skill_id in required}
+        skill_ids = self._ordered_task_skill_ids(
+            TaskContext(
+                task_id=task_id,
+                instruction_md="",
+                task_toml=task_toml,
+                tests_dir="",
+                environment_dir="",
+            )
+        )
+        if not skill_ids:
+            return "No bundled task skills found."
+
+        summaries = []
+        if required:
+            summaries.append(
+                "Task metadata marks these bundled skills as required or preferred: "
+                + ", ".join(required)
+            )
+        for skill_id in skill_ids[:8]:
+            skill = self.skill_repo.load_skill(task_id, skill_id)
+            if skill is None:
+                summaries.append(f"- {skill_id}: summary unavailable")
+                continue
+            parts = []
+            if self._normalize_skill_name(skill_id) in required_normalized:
+                parts.append("priority=required")
+            if skill.description:
+                parts.append(f"description={skill.description.strip().replace(chr(10), ' ')[:180]}")
+            if skill.trigger_condition:
+                parts.append(f"trigger={skill.trigger_condition.strip().replace(chr(10), ' ')[:180]}")
+            if skill.usage:
+                parts.append(f"usage={skill.usage.strip().replace(chr(10), ' ')[:180]}")
+            if skill.scripts:
+                file_list = ", ".join(sorted(skill.scripts)[:4])
+                parts.append(f"files={file_list}")
+            summaries.append(f"- {skill_id}: " + " | ".join(parts))
+
+        return "Bundled task skills:\n" + "\n".join(summaries)
+
+    def _record_attempt(
+        self,
+        context: TaskContext,
+        skill: SkillBundle,
+        judger_feedback: Optional[JudgerFeedback],
+        real_test_passed: Optional[bool],
+        quick_proposer_iterations: int,
+        research_triggered: bool,
+        note: str = "",
+        duration_seconds: float = 0.0,
+        input_tokens: int = 0,
+        cached_input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> None:
+        """Persist attempt history even when the task is not solved yet."""
+        blocking_issues: list[str] = []
+        success_factors: list[str] = []
+        judger_passed: Optional[bool] = None
+
+        if judger_feedback is not None:
+            judger_passed = judger_feedback.passed
+            blocking_issues.extend(
+                self._truncate_note(f"{issue.type}: {issue.description}", limit=180)
+                for issue in judger_feedback.blocking_issues[:5]
+            )
+            success_factors.extend(
+                self._truncate_note(signal, limit=180)
+                for signal in judger_feedback.positive_signals[:5]
+            )
+
+        if note and real_test_passed is False:
+            blocking_issues.append(self._truncate_note(f"real_test: {note}", limit=180))
+
+        attempt = TaskAttempt(
+            skill_id=skill.skill_id,
+            quick_proposer_iterations=quick_proposer_iterations,
+            research_triggered=research_triggered,
+            judger_passed=judger_passed,
+            real_test_passed=real_test_passed,
+            duration_seconds=duration_seconds,
+            input_tokens=input_tokens,
+            cached_input_tokens=cached_input_tokens,
+            output_tokens=output_tokens,
+            blocking_issues=blocking_issues,
+            success_factors=success_factors,
+        )
+        self.task_memory.ensure_task(
+            task_id=context.task_id,
+            problem_type=context.problem_type or ProblemType.TOOL,
+            domain=context.domain,
+            problem_modeling=context.problem_modeling,
+        )
+        self.task_memory.add_attempt(context.task_id, attempt)
+        self.shallow_memory.add_trace(context.task_id, attempt)
+
+    def _should_use_quick_proposer(self, judger_feedback: JudgerFeedback) -> bool:
+        """Reserve QuickProposer for wording-sensitive failures, not execution failures."""
+        if judger_feedback.recommendation == "abandon":
+            return False
+
+        operational_issue_types = {
+            "constraint_violation",
+            "missing_output",
+            "wrong_format",
+            "wrong_answer",
+            "execution_error",
+            "tool_error",
+            "runtime_error",
+            "timeout",
+            "file_not_found",
+            "module_not_found",
+            "dependency_missing",
+        }
+        operational_markers = (
+            "missing output",
+            "wrong format",
+            "wrong answer",
+            "timed out",
+            "timeout",
+            "file not found",
+            "module not found",
+            "dependency",
+            "runtime error",
+            "execution failed",
+            "constraint",
+        )
+
+        for issue in judger_feedback.blocking_issues:
+            issue_type = (issue.type or "").strip().lower()
+            description = issue.description.lower()
+            suggestion = issue.suggestion.lower()
+            if issue_type in operational_issue_types:
+                return False
+            combined = f"{description}\n{suggestion}"
+            if any(marker in combined for marker in operational_markers):
+                return False
+        return True
+
     def _evaluate_with_judger(self, context: TaskContext, skill: SkillBundle,
                                criteria: Optional[dict] = None) -> JudgerFeedback:
         """Evaluate skill with Judger.
@@ -574,6 +929,18 @@ class BenchmarkRunner:
             "passed": result["passed"],
             "score": result["score"],
             "details": result["details"],
+            "exit_code": result.get("exit_code", -1),
+            "model": result.get("model", ""),
+            "reasoning_effort": result.get("reasoning_effort", ""),
+            "execution_duration_seconds": result.get("execution_duration_seconds", 0.0),
+            "test_duration_seconds": result.get("test_duration_seconds", 0.0),
+            "duration_seconds": result.get("duration_seconds", 0.0),
+            "difficulty": result.get("difficulty", ""),
+            "routing_reason": result.get("routing_reason", ""),
+            "failure_class": result.get("failure_class", ""),
+            "input_tokens": result.get("input_tokens", 0),
+            "cached_input_tokens": result.get("cached_input_tokens", 0),
+            "output_tokens": result.get("output_tokens", 0),
         }
 
     def _reflect_on_judger(
@@ -702,9 +1069,330 @@ class BenchmarkRunner:
                 research_triggered=False,
                 judger_passed=True,
                 real_test_passed=True,
+                duration_seconds=attempt_result.get("duration_seconds", 0.0),
+                input_tokens=attempt_result.get("input_tokens", 0),
+                cached_input_tokens=attempt_result.get("cached_input_tokens", 0),
+                output_tokens=attempt_result.get("output_tokens", 0),
                 success_factors=[why_worked],
             ),
         )
+
+    def _maybe_optimize_after_success(
+        self,
+        context: TaskContext,
+        baseline_result: dict,
+        baseline_skill: Optional[SkillBundle],
+        run_record: BenchmarkRunRecord,
+    ) -> None:
+        """Optionally evolve a lower-cost skill after correctness is already proven."""
+        rounds = max(0, int(self.config.post_solve_optimization_rounds))
+        if rounds <= 0:
+            return
+
+        current_skill = baseline_skill or self._select_post_solve_candidate_skill(context)
+        baseline_source = "skill_pass" if baseline_skill is not None else "base_model_pass"
+        current_result = baseline_result
+        optimization_feedback: list[str] = []
+        if current_skill is None:
+            return
+
+        for round_index in range(1, rounds + 1):
+            optimized_skill = self.skill_creator.optimize_skill(
+                task_id=context.task_id,
+                problem_type=context.problem_type.value if context.problem_type else "tool",
+                domain=context.domain or "general",
+                problem_modeling=context.problem_modeling or "direct_solution",
+                current_skill=current_skill,
+                success_summary=self._build_success_summary(current_result),
+                bundled_task_skills=context.bundled_skills_summary,
+                duration_seconds=float(current_result.get("duration_seconds", 0.0) or 0.0),
+                input_tokens=int(current_result.get("input_tokens", 0) or 0),
+                cached_input_tokens=int(current_result.get("cached_input_tokens", 0) or 0),
+                output_tokens=int(current_result.get("output_tokens", 0) or 0),
+                baseline_source=baseline_source,
+                instruction_excerpt=self._truncate_note(context.instruction_md, limit=1600),
+                failure_feedback=self._format_optimization_feedback(
+                    baseline_source=baseline_source,
+                    feedback_items=optimization_feedback,
+                ),
+                skill_id=f"{current_skill.skill_id}-opt{round_index}",
+            )
+
+            critic_result = self.critic.run(
+                old_submission={"type": "skill", "content": current_skill.to_skill_md()},
+                new_submission={"type": "skill", "content": optimized_skill.to_skill_md()},
+            )
+            if not critic_result.get("approved"):
+                optimization_feedback.append(
+                    self._summarize_optimization_feedback(
+                        round_index=round_index,
+                        skill=optimized_skill,
+                        critic_note=critic_result.get("rejection_reason", critic_result.get("reason", "")),
+                    )
+                )
+                self._append_run_event(
+                    run_record,
+                    stage=f"post_solve_optimize_round_{round_index}",
+                    passed=False,
+                    skill_id=optimized_skill.skill_id,
+                    notes=critic_result.get("rejection_reason", critic_result.get("reason", "")),
+                )
+                continue
+
+            self.shallow_memory.add_skill(optimized_skill)
+            trial = self._try_skill(context, optimized_skill)
+            real_result = trial.get("real_test_result") or {}
+            if real_result:
+                self._append_real_test_event(run_record, optimized_skill.skill_id, real_result)
+
+            self._record_attempt(
+                context=context,
+                skill=optimized_skill,
+                judger_feedback=trial.get("feedback"),
+                real_test_passed=real_result.get("passed") if real_result else None,
+                quick_proposer_iterations=0,
+                research_triggered=False,
+                note=real_result.get("details", "") if real_result else "",
+                duration_seconds=real_result.get("duration_seconds", 0.0) if real_result else 0.0,
+                input_tokens=real_result.get("input_tokens", 0) if real_result else 0,
+                cached_input_tokens=real_result.get("cached_input_tokens", 0) if real_result else 0,
+                output_tokens=real_result.get("output_tokens", 0) if real_result else 0,
+            )
+
+            improved, comparison_summary = self._compare_optimization_results(
+                baseline_result=current_result,
+                candidate_result=real_result,
+                baseline_skill=current_skill,
+                candidate_skill=optimized_skill,
+            )
+            self._append_run_event(
+                run_record,
+                stage=f"post_solve_optimize_round_{round_index}",
+                passed=improved,
+                model=real_result.get("model", ""),
+                score=real_result.get("score", 0.0),
+                duration_seconds=real_result.get("duration_seconds", 0.0),
+                failure_class=real_result.get("failure_class", ""),
+                skill_id=optimized_skill.skill_id,
+                routing_reason=real_result.get("routing_reason", ""),
+                input_tokens=real_result.get("input_tokens", 0),
+                cached_input_tokens=real_result.get("cached_input_tokens", 0),
+                output_tokens=real_result.get("output_tokens", 0),
+                notes=comparison_summary,
+            )
+
+            if not improved:
+                optimization_feedback.append(
+                    self._summarize_optimization_feedback(
+                        round_index=round_index,
+                        skill=optimized_skill,
+                        judger_feedback=trial.get("feedback"),
+                        real_result=real_result,
+                        comparison_summary=comparison_summary,
+                    )
+                )
+                continue
+
+            self._register_optimized_skill_success(
+                context=context,
+                skill=optimized_skill,
+                comparison_summary=comparison_summary,
+                update_task_memory=baseline_skill is not None,
+            )
+            current_skill = optimized_skill
+            current_result = real_result
+            baseline_source = "skill_pass"
+
+    def _select_post_solve_candidate_skill(self, context: TaskContext) -> Optional[SkillBundle]:
+        """Choose a bundled skill to optimize after a base-model solve."""
+        for skill_id in self._ordered_task_skill_ids(context):
+            skill = self.skill_repo.load_skill(context.task_id, skill_id)
+            if skill is not None:
+                return skill
+        return None
+
+    def _build_success_summary(self, result: dict) -> str:
+        """Create a compact success summary for post-solve optimization prompts."""
+        parts = []
+        details = str(result.get("details", "") or "").strip()
+        if details:
+            parts.append(self._truncate_note(details, limit=1200))
+
+        duration_seconds = float(result.get("duration_seconds", 0.0) or 0.0)
+        input_tokens = int(result.get("input_tokens", 0) or 0)
+        cached_input_tokens = int(result.get("cached_input_tokens", 0) or 0)
+        output_tokens = int(result.get("output_tokens", 0) or 0)
+        if duration_seconds or input_tokens or output_tokens:
+            parts.append(
+                "Performance:"
+                f" duration_seconds={duration_seconds:.2f},"
+                f" input_tokens={input_tokens},"
+                f" cached_input_tokens={cached_input_tokens},"
+                f" output_tokens={output_tokens}"
+            )
+
+        return "\n\n".join(parts) if parts else "Successful execution with no additional summary."
+
+    def _format_optimization_feedback(
+        self,
+        baseline_source: str,
+        feedback_items: list[str],
+    ) -> str:
+        """Format the latest optimization-loop feedback for the next candidate."""
+        intro = (
+            "Baseline passed with an external skill."
+            if baseline_source == "skill_pass"
+            else "Baseline passed without an external skill; distill the successful behavior into a reusable skill."
+        )
+        if not feedback_items:
+            return intro
+        joined = "\n\n".join(feedback_items[-3:])
+        return f"{intro}\n\nRecent optimization failures or regressions:\n{joined}"
+
+    def _summarize_optimization_feedback(
+        self,
+        round_index: int,
+        skill: SkillBundle,
+        critic_note: str = "",
+        judger_feedback: Optional[JudgerFeedback] = None,
+        real_result: Optional[dict] = None,
+        comparison_summary: str = "",
+    ) -> str:
+        """Compress candidate failure feedback for the next optimization round."""
+        parts = [f"Round {round_index} candidate: {skill.skill_id}"]
+        if critic_note:
+            parts.append(f"critic: {self._truncate_note(critic_note, limit=240)}")
+        if judger_feedback is not None:
+            for issue in judger_feedback.blocking_issues[:3]:
+                parts.append(
+                    self._truncate_note(
+                        f"judger {issue.type}: {issue.description}",
+                        limit=240,
+                    )
+                )
+        if real_result:
+            failure_class = str(real_result.get("failure_class", "") or "").strip()
+            details = str(real_result.get("details", "") or "").strip()
+            if failure_class:
+                parts.append(f"real_test failure_class={failure_class}")
+            if details:
+                parts.append(
+                    self._truncate_note(
+                        f"real_test details: {details}",
+                        limit=280,
+                    )
+                )
+        if comparison_summary:
+            parts.append(self._truncate_note(f"comparison: {comparison_summary}", limit=220))
+        return "\n".join(parts)
+
+    def _compare_optimization_results(
+        self,
+        baseline_result: dict,
+        candidate_result: dict,
+        baseline_skill: SkillBundle,
+        candidate_skill: SkillBundle,
+    ) -> tuple[bool, str]:
+        """Decide whether a post-solve optimized skill is materially better."""
+        if not candidate_result.get("passed"):
+            return False, "candidate failed official real test"
+
+        improvements: list[str] = []
+        regressions: list[str] = []
+        notes: list[str] = []
+        cost_improved = False
+
+        baseline_duration = float(baseline_result.get("duration_seconds", 0.0) or 0.0)
+        candidate_duration = float(candidate_result.get("duration_seconds", 0.0) or 0.0)
+        if baseline_duration > 0 and candidate_duration > 0:
+            if candidate_duration <= baseline_duration * 0.9:
+                improvements.append(
+                    f"duration {baseline_duration:.2f}s -> {candidate_duration:.2f}s"
+                )
+                cost_improved = True
+            elif candidate_duration > baseline_duration * 1.15:
+                regressions.append(
+                    f"duration regressed {baseline_duration:.2f}s -> {candidate_duration:.2f}s"
+                )
+
+        baseline_tokens = self._total_tokens(baseline_result)
+        candidate_tokens = self._total_tokens(candidate_result)
+        if baseline_tokens > 0 and candidate_tokens > 0:
+            if candidate_tokens <= int(baseline_tokens * 0.9):
+                improvements.append(f"tokens {baseline_tokens} -> {candidate_tokens}")
+                cost_improved = True
+            elif candidate_tokens > int(baseline_tokens * 1.15):
+                regressions.append(f"tokens regressed {baseline_tokens} -> {candidate_tokens}")
+
+        baseline_skill_size = len(baseline_skill.to_skill_md())
+        candidate_skill_size = len(candidate_skill.to_skill_md())
+        if candidate_skill_size <= int(baseline_skill_size * 0.75):
+            improvements.append(f"skill_md_size {baseline_skill_size} -> {candidate_skill_size}")
+        elif candidate_skill_size > int(baseline_skill_size * 1.15):
+            size_note = f"skill_md_size regressed {baseline_skill_size} -> {candidate_skill_size}"
+            # Prompt size matters, but it should not outweigh large real runtime/token wins
+            # that are already measured on the official task execution path.
+            if cost_improved:
+                notes.append(size_note)
+            else:
+                regressions.append(size_note)
+
+        if regressions:
+            details = regressions + improvements + notes
+            return False, "; ".join(details) if details else "candidate regressed"
+        if improvements:
+            return True, "; ".join(improvements + notes)
+        return False, "candidate passed but showed no material runtime/token/size improvement"
+
+    def _register_optimized_skill_success(
+        self,
+        context: TaskContext,
+        skill: SkillBundle,
+        comparison_summary: str,
+        update_task_memory: bool,
+    ) -> None:
+        """Persist an optimized skill that improved over an already passing baseline."""
+        self.skill_repo.save_skill(context.task_id, skill)
+        self.shallow_memory.add_skill(skill)
+
+        effective_method = EffectiveMethod(
+            method_id=skill.skill_id,
+            description=self._truncate_note(
+                f"{skill.description} Optimized after successful solve. {comparison_summary}",
+                limit=300,
+            ),
+            origin_task=context.task_id,
+            transferability=self._estimate_transferability(context, skill),
+            conditions=f"post_solve_optimization on task={context.task_id}",
+        )
+        self.meta_memory.add_effective_method(
+            problem_type=context.problem_type or ProblemType.TOOL,
+            domain=context.domain or "general",
+            modeling=context.problem_modeling or "direct_solution",
+            method=effective_method,
+        )
+        self.meta_memory.add_success_factor(
+            problem_type=context.problem_type or ProblemType.TOOL,
+            domain=context.domain or "general",
+            modeling=context.problem_modeling or "direct_solution",
+            factor=self._truncate_note(
+                f"post_solve_optimization: {comparison_summary}",
+                limit=240,
+            ),
+        )
+
+        if update_task_memory:
+            self.task_memory.update_final_status(
+                task_id=context.task_id,
+                status=TaskStatus.SOLVED,
+                what_worked=skill.description,
+                why_worked=self._truncate_note(comparison_summary, limit=400),
+                effective_skill_id=skill.skill_id,
+            )
+
+    def _total_tokens(self, result: dict) -> int:
+        """Return a simple token proxy for optimization comparisons."""
+        return int(result.get("input_tokens", 0) or 0) + int(result.get("output_tokens", 0) or 0)
 
     def _append_run_event(
         self,
@@ -717,6 +1405,9 @@ class BenchmarkRunner:
         failure_class: str = "",
         skill_id: str = "",
         routing_reason: str = "",
+        input_tokens: int = 0,
+        cached_input_tokens: int = 0,
+        output_tokens: int = 0,
         notes: str = "",
     ) -> None:
         """Attach a compact event record to the task run."""
@@ -730,6 +1421,9 @@ class BenchmarkRunner:
                 failure_class=failure_class,
                 skill_id=skill_id,
                 routing_reason=routing_reason,
+                input_tokens=input_tokens,
+                cached_input_tokens=cached_input_tokens,
+                output_tokens=output_tokens,
                 notes=self._truncate_note(notes),
             )
         )
@@ -751,6 +1445,9 @@ class BenchmarkRunner:
             failure_class=real_result.get("failure_class", ""),
             skill_id=skill_id,
             routing_reason=real_result.get("routing_reason", ""),
+            input_tokens=real_result.get("input_tokens", 0),
+            cached_input_tokens=real_result.get("cached_input_tokens", 0),
+            output_tokens=real_result.get("output_tokens", 0),
             notes=real_result.get("details", ""),
         )
 
@@ -771,6 +1468,15 @@ class BenchmarkRunner:
             if event.failure_class:
                 return event.failure_class
         return "abandoned_without_classification"
+
+    def _classify_unhandled_exception(self, exc: Exception) -> str:
+        """Map unexpected task-run exceptions into compact failure classes."""
+        lowered = str(exc).lower()
+        if "protocolerror" in lowered or "incompleteread" in lowered or "connection broken" in lowered:
+            return "docker_transport_error"
+        if "permission denied" in lowered:
+            return "permission_error"
+        return exc.__class__.__name__.lower()
 
     def _on_task_abandoned(self, task_id: str, context: TaskContext) -> None:
         """Handle task abandonment."""

@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from .types import Config
+from .types import Config, default_skillsbench_root
 from ..agent_config import AGENT_CONFIG
 
 
@@ -15,11 +15,13 @@ def _get_model(name: str, override: str) -> str:
 
 
 def load_config(
-    skillsbench_root: str = "/home/yuchong/skillsbench",
+    skillsbench_root: str = "",
     data_root: str = "",
     **kwargs
 ) -> Config:
     """Load configuration from environment and parameters."""
+    skillsbench_root = skillsbench_root or default_skillsbench_root()
+
     # Get API key from environment
     api_key = os.environ.get("OPENAI_API_KEY", "")
     base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
@@ -54,6 +56,18 @@ def load_config(
         real_test_timeout_seconds=kwargs.get(
             "real_test_timeout_seconds",
             Config.real_test_timeout_seconds,
+        ),
+        post_solve_optimization_rounds=kwargs.get(
+            "post_solve_optimization_rounds",
+            Config.post_solve_optimization_rounds,
+        ),
+        base_attempt_include_task_skills=kwargs.get(
+            "base_attempt_include_task_skills",
+            Config.base_attempt_include_task_skills,
+        ),
+        stop_after_base_attempt=kwargs.get(
+            "stop_after_base_attempt",
+            Config.stop_after_base_attempt,
         ),
         openai_api_key=api_key,
         openai_base_url=base_url,

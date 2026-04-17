@@ -2,7 +2,16 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Optional
+
+
+def default_skillsbench_root() -> str:
+    """Prefer the local MasterSkill case root when it exists."""
+    local_case_root = Path(__file__).resolve().parents[1] / "case"
+    if local_case_root.exists():
+        return str(local_case_root)
+    return "/home/yuchong/skillsbench"
 
 
 class ProblemType(str, Enum):
@@ -50,6 +59,10 @@ class TaskAttempt:
     research_triggered: bool = False
     judger_passed: Optional[bool] = None
     real_test_passed: Optional[bool] = None
+    duration_seconds: float = 0.0
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
     blocking_issues: list = field(default_factory=list)
     success_factors: list = field(default_factory=list)
 
@@ -134,6 +147,7 @@ class TaskContext:
     task_toml: dict
     tests_dir: str
     environment_dir: str
+    bundled_skills_summary: str = ""
     model_attempt_result: Optional[str] = None
     failure_reason: Optional[str] = None
     problem_type: Optional[ProblemType] = None
@@ -166,6 +180,9 @@ class BenchmarkRunEvent:
     failure_class: str = ""
     skill_id: str = ""
     routing_reason: str = ""
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
     notes: str = ""
 
 
@@ -208,7 +225,7 @@ class Config:
     Models are loaded from agent_config.py - see model_xxx fields below.
     """
     # Paths
-    skillsbench_root: str = "/home/yuchong/skillsbench"
+    skillsbench_root: str = field(default_factory=default_skillsbench_root)
     data_root: str = ""
 
     # Limits
@@ -219,6 +236,9 @@ class Config:
     initial_attempt_timeout_seconds: int = 240
     skill_execution_timeout_seconds: int = 420
     real_test_timeout_seconds: int = 900
+    post_solve_optimization_rounds: int = 0
+    base_attempt_include_task_skills: bool = True
+    stop_after_base_attempt: bool = False
 
     # Models per agent type (loaded from agent_config)
     # Override individual agents via kwargs if needed

@@ -1,0 +1,24 @@
+{
+  "react-performance-debugging": {
+    "task_id": "react-performance-debugging",
+    "problem_type": "tool_bottleneck",
+    "domain": "web-performance",
+    "problem_modeling": "optimization",
+    "attempts": [],
+    "final_status": "abandoned",
+    "what_worked": "",
+    "why_worked_analysis": "",
+    "effective_skill_id": null
+  },
+  "taxonomy-tree-merge": {
+    "task_id": "taxonomy-tree-merge",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "ml/nlp",
+    "problem_modeling": "generation",
+    "attempts": [],
+    "final_status": "abandoned",
+    "what_worked": "",
+    "why_worked_analysis": "",
+    "effective_skill_id": null
+  }
+}
