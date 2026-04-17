@@ -11,7 +11,7 @@ RUN_TS="$(date +%Y%m%d_%H%M%S)"
 RUN_LOG="$LOG_DIR/overnight_${RUN_TS}.log"
 STATUS_FILE="$LOG_DIR/overnight_latest_run.txt"
 BRANCH="$(git branch --show-current)"
-DEADLINE_EPOCH="$(( $(date +%s) + 35500 ))"
+DEADLINE_EPOCH="${MASTERSKILL_DEADLINE_EPOCH:-$(( $(date +%s) + 35500 ))}"
 
 export PYTHONUNBUFFERED=1
 
@@ -38,6 +38,7 @@ stage_known_paths() {
     .gitignore \
     run_local.py \
     scripts/overnight_masterskill.sh \
+    scripts/monitor_overnight_masterskill.sh \
     MasterSkill/run_local.py \
     MasterSkill/session_resume.md \
     MasterSkill/development_log.md \
