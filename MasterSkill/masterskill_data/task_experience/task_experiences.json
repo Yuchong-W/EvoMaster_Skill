@@ -660,6 +660,125 @@
           "The run attempted source schema inspection and considered deterministic merging strategy.",
           "The log indicates awareness of dependency constraints and intent to avoid unavailable heavy packages."
         ]
+      },
+      {
+        "skill_id": "hierarchical-taxonomy-clustering",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required files `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not produced.",
+          "wrong_answer: No unified taxonomy result was generated, so none of the taxonomy quality constraints (5-level structure, naming rules, sibling distinctness, source distribution, ...",
+          "wrong_format: Required output schema/columns cannot be verified because no CSV artifacts were delivered."
+        ],
+        "success_factors": [
+          "Reasonable implementation plan was articulated.",
+          "Skill-aligned approach (embedding-based recursive clustering) was considered."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required output files `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not pro...",
+          "constraint_violation: No evidence that critical taxonomy constraints were satisfied (5-level unified mapping, 10-20 L1 categories, balanced hierarchy, naming rules, source distr...",
+          "wrong_format: The only visible artifact content is task instruction text, not schema-compliant CSV outputs."
+        ],
+        "success_factors": [
+          "Reasonable analysis of source differences and hierarchy constraints was started.",
+          "A concrete implementation plan was outlined before coding."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-contract-first-merge",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required output files were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the result e...",
+          "wrong_answer: Execution ended with `Error: Execution failed` and `Execution timed out`, so no unified taxonomy was actually generated.",
+          "constraint_violation: Because no taxonomy artifacts were generated, none of the critical task constraints (5-level hierarchy, category naming rules, branch-size bounds, source d..."
+        ],
+        "success_factors": [
+          "The execution log shows some structured planning (contract-first intent, input inspection, algorithm path evaluation)."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-oracle-guided",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the executio...",
+          "wrong_answer: Execution ended with `Execution failed` and `Execution timed out`, so no usable taxonomy merge result was generated.",
+          "wrong_format: Only task text/instruction artifacts were emitted; no structured merged taxonomy output in the specified CSV format was provided."
+        ],
+        "success_factors": [
+          "Reasonable plan: schema/contract verification before semantic merge.",
+          "Execution log indicates source-specific taxonomy ambiguity was being analyzed thoughtfully."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required output files (`/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv`) were not p...",
+          "wrong_format: No deliverable CSV content is available to verify required schemas/columns and 5-level taxonomy structure.",
+          "constraint_violation: Because no taxonomy outputs were produced, none of the critical taxonomy constraints (L1 size, subcategory cardinality, naming rules, overlap limits, sourc..."
+        ],
+        "success_factors": [
+          "Reasonable implementation plan was articulated (normalization, deterministic grouping, validation/export intent).",
+          "Input scale and schema were inspected before implementation."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-deterministic-contract",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the reported...",
+          "wrong_answer: Execution terminated with `Error: Execution failed` and `Execution timed out`, so no unified taxonomy result was actually generated.",
+          "constraint_violation: Critical task constraints cannot be verified because no final taxonomy artifact exists (5-level mapping, top-level category count, fan-out bounds, naming/o..."
+        ],
+        "success_factors": [
+          "The execution log shows a concrete plan and some initial data profiling work.",
+          "There was intent to perform deterministic merge/validation rather than ad hoc mapping."
+        ]
       }
     ],
     "final_status": "abandoned",

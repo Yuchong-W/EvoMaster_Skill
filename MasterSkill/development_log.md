@@ -790,3 +790,7 @@ Current local case pool size:
 ### 2026-04-18 07:38 CST current react-performance-debugging
 
 - exit_code=0; run_id=ac5d06ed819b | status=abandoned | failure_class=timeoutexpired | duration_seconds=2266.8051828269963 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-lc1ug0hj', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-lc1ug0h...
+
+### 2026-04-18 09:08 CST current taxonomy-tree-merge
+
+- exit_code=0; run_id=8f0054b678e5 | status=abandoned | failure_class=timeoutexpired | duration_seconds=5933.604577464001 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-o17n59j1', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-o17n59j...
