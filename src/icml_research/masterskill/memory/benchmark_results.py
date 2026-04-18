@@ -35,7 +35,15 @@ class BenchmarkResultStore:
 
     def _to_jsonable(self, record: BenchmarkRunRecord) -> dict:
         """Convert dataclasses and enums into JSON-safe primitives."""
-        return self._normalize(asdict(record))
+        payload = self._normalize(asdict(record))
+        for event in payload.get("events", []):
+            input_tokens = self._as_int(event.get("input_tokens", 0))
+            cached_input_tokens = self._as_int(event.get("cached_input_tokens", 0))
+            output_tokens = self._as_int(event.get("output_tokens", 0))
+            effective_input_tokens = max(input_tokens - cached_input_tokens, 0)
+            event["effective_input_tokens"] = effective_input_tokens
+            event["effective_total_tokens"] = effective_input_tokens + output_tokens
+        return payload
 
     def _normalize(self, value):
         if isinstance(value, Enum):
@@ -45,3 +53,9 @@ class BenchmarkResultStore:
         if isinstance(value, list):
             return [self._normalize(v) for v in value]
         return value
+
+    def _as_int(self, value) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0

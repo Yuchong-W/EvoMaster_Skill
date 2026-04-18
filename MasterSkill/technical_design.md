@@ -38,6 +38,9 @@ Current policy:
 - `MasterSkill/` remains the direct execution path used for local debugging.
 - `src/icml_research/masterskill/` is kept in sync as the installable package target.
 - `pyproject.toml` and `scripts/run_research.py` provide the package-oriented entry path for the broader repo.
+- the `icml_research` package namespace is legacy naming from an earlier repo phase
+  and is retained for compatibility, not because the current project is still
+  centered on ICML paper-analysis workflows
 
 This dual-layout route was chosen because the repo already had working imports based on `MasterSkill/`, while packaging work had already started under `src/`.
 

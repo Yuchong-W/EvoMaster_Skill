@@ -1259,13 +1259,17 @@ class BenchmarkRunner:
         input_tokens = int(result.get("input_tokens", 0) or 0)
         cached_input_tokens = int(result.get("cached_input_tokens", 0) or 0)
         output_tokens = int(result.get("output_tokens", 0) or 0)
+        effective_input_tokens = self._effective_input_tokens(result)
+        effective_total_tokens = self._effective_total_tokens(result)
         if duration_seconds or input_tokens or output_tokens:
             parts.append(
                 "Performance:"
                 f" duration_seconds={duration_seconds:.2f},"
                 f" input_tokens={input_tokens},"
                 f" cached_input_tokens={cached_input_tokens},"
-                f" output_tokens={output_tokens}"
+                f" effective_input_tokens={effective_input_tokens},"
+                f" output_tokens={output_tokens},"
+                f" effective_total_tokens={effective_total_tokens}"
             )
 
         return "\n\n".join(parts) if parts else "Successful execution with no additional summary."
@@ -1352,14 +1356,16 @@ class BenchmarkRunner:
                     f"duration regressed {baseline_duration:.2f}s -> {candidate_duration:.2f}s"
                 )
 
-        baseline_tokens = self._total_tokens(baseline_result)
-        candidate_tokens = self._total_tokens(candidate_result)
+        baseline_tokens = self._effective_total_tokens(baseline_result)
+        candidate_tokens = self._effective_total_tokens(candidate_result)
         if baseline_tokens > 0 and candidate_tokens > 0:
             if candidate_tokens <= int(baseline_tokens * 0.9):
-                improvements.append(f"tokens {baseline_tokens} -> {candidate_tokens}")
+                improvements.append(f"effective_tokens {baseline_tokens} -> {candidate_tokens}")
                 cost_improved = True
             elif candidate_tokens > int(baseline_tokens * 1.15):
-                regressions.append(f"tokens regressed {baseline_tokens} -> {candidate_tokens}")
+                regressions.append(
+                    f"effective_tokens regressed {baseline_tokens} -> {candidate_tokens}"
+                )
 
         baseline_skill_size = len(baseline_skill.to_skill_md())
         candidate_skill_size = len(candidate_skill.to_skill_md())
@@ -1427,9 +1433,15 @@ class BenchmarkRunner:
                 effective_skill_id=skill.skill_id,
             )
 
-    def _total_tokens(self, result: dict) -> int:
-        """Return a simple token proxy for optimization comparisons."""
-        return int(result.get("input_tokens", 0) or 0) + int(result.get("output_tokens", 0) or 0)
+    def _effective_input_tokens(self, result: dict) -> int:
+        """Return the non-cached input-token cost for a task result."""
+        input_tokens = int(result.get("input_tokens", 0) or 0)
+        cached_input_tokens = int(result.get("cached_input_tokens", 0) or 0)
+        return max(input_tokens - cached_input_tokens, 0)
+
+    def _effective_total_tokens(self, result: dict) -> int:
+        """Return the effective token cost for optimization comparisons."""
+        return self._effective_input_tokens(result) + int(result.get("output_tokens", 0) or 0)
 
     def _append_run_event(
         self,

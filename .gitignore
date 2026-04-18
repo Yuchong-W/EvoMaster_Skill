@@ -8,3 +8,7 @@ __pycache__/
 MasterSkill/.codex
 MasterSkill/logs/
 *:Zone.Identifier
+MasterSkill/case/tasks/**/node_modules/
+MasterSkill/case/tasks/**/.next/
+MasterSkill/case/tasks/**/playwright-report/
+MasterSkill/case/tasks/**/test-results/

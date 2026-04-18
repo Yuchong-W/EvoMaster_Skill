@@ -830,6 +830,25 @@ Current local case pool size:
 - Reworked `scripts/overnight_masterskill.sh` so current/evolution slots run first and baseline slots are skipped automatically when the latest result already contains a valid `base_attempt` record. This keeps overnight time focused on the real optimization target rather than re-sampling already-valid pure-base failures.
 - Validation passed: `py_compile` succeeded, CLI help exposes `--max-research-cycles`, and the latest baseline JSONs for both target tasks already end at `base_attempt`, so the new baseline-skip rule will activate on the next overnight start.
 
+### 2026-04-18 16:49 CST Effective Token Accounting
+
+- Normalized optimization-cost comparisons to use `effective_tokens = max(input_tokens - cached_input_tokens, 0) + output_tokens` instead of raw `input_tokens + output_tokens`, so cache-heavy runs are not treated as equally expensive when the billable/runtime token burden is materially lower.
+- Updated post-solve optimization summaries to show both raw token fields and the derived `effective_input_tokens` / `effective_total_tokens` values.
+- Extended `BenchmarkResultStore` persistence so every newly written benchmark event JSON now includes `effective_input_tokens` and `effective_total_tokens`, removing the need for downstream analysis scripts to recompute the cached-token-adjusted view by hand.
+
+### 2026-04-18 17:15 CST React Current-Chain Breakthrough
+
+- Re-ran `python3 run_local.py --task react-performance-debugging --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data --post-solve-optimization-rounds 1 --max-research-cycles 3` with real host Docker access.
+- New latest run `11cfecf9997e` finished `solved` instead of falling into the older internal-agent `timeoutexpired` path.
+- The solve came directly from `base_attempt`:
+  - `duration_seconds = 679.14`
+  - `input_tokens = 2486252`
+  - `cached_input_tokens = 2445568`
+  - `output_tokens = 18946`
+  - `effective_total_tokens = 59630`
+- Post-pass optimization attempted one candidate skill, `react-nextjs-performance-repair`, but that candidate failed the official real test and was not accepted.
+- Net effect: `react-performance-debugging` is now a confirmed solved current/evolved task, and the control-plane/runtime fixes are no longer blocked by the previous fatal internal-agent timeout chain on this task.
+
 ### 2026-04-18 16:04 CST Overnight run started
 
 - branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log
