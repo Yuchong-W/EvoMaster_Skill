@@ -798,3 +798,7 @@ Current local case pool size:
 ### 2026-04-18 09:21 CST baseline react-performance-debugging
 
 - exit_code=0; run_id=bd8392b759a6 | status=abandoned | failure_class=timeout | duration_seconds=810.9967598750009 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 09:32 CST baseline taxonomy-tree-merge
+
+- exit_code=0; run_id=acf078bb3e51 | status=abandoned | failure_class=timeout | duration_seconds=717.2174208470024 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
