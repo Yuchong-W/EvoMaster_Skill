@@ -830,3 +830,7 @@ Current local case pool size:
 ### 2026-04-18 16:04 CST Overnight run started
 
 - branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160422.log
+
+### 2026-04-18 16:17 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=698b991b04a6 | status=abandoned | failure_class=timeout | duration_seconds=883.826898697007 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
