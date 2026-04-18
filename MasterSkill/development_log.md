@@ -806,3 +806,19 @@ Current local case pool size:
 ### 2026-04-18 10:05 CST current react-performance-debugging
 
 - exit_code=0; run_id=de26c5ee9511 | status=abandoned | failure_class=timeoutexpired | duration_seconds=2225.3260962740023 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-iwy0kbrw', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-iwy0kbr...
+
+### 2026-04-18 11:45 CST Stability Repair Pass
+
+- Added internal-agent fallback handling across `Searcher`, `Analyzer`, `Critic`, `Reflector`, `QuickProposer`, `SkillCreator`, and base JSON parsing so repeated Codex timeouts no longer crash the whole benchmark run.
+- Changed `Judger` fallback behavior from lenient pass to conservative fail, preventing unavailable Judger responses from incorrectly advancing to real tests.
+- Adjusted internal Codex agent time budgets to `120/180/240s` for `gpt-5.2/5.3/5.4` and lowered execution reasoning effort from `xhigh` to `high` or `medium` depending on model tier.
+- Made Docker build apt timeout task-aware using `task.toml` `environment.build_timeout_sec` with a 300s floor; this directly addresses repeated `react-performance-debugging` build-stage apt failures after Docker cache resets.
+- Tightened artifact export filtering to skip cache-heavy or transient paths such as Hugging Face cache, `.npm`, `.next/cache`, `tsx`, `v8-compile-cache`, and Playwright temp downloads, reducing archive noise and removing the previously observed `taxonomy-tree-merge` archive failure source.
+- Improved research handoff by passing `Searcher` recommended approach and relevant knowledge into `SkillCreator`, not just the short search summary.
+- Added failure-aware cooldown and broader staging coverage to `scripts/overnight_masterskill.sh` so overnight automation can skip repeated identical failures and correctly commit `judge`/`proposer` mirror changes.
+
+### 2026-04-18 11:45 CST Chain Verification
+
+- `python3 -m py_compile` passed for all modified `MasterSkill/` and mirrored `src/icml_research/masterskill/` modules.
+- Local smoke checks passed for fallback paths: `Searcher`, `SkillCreator`, `QuickProposer`, `Judger`, and Docker timeout/cache helpers.
+- A real Docker-backed `react-performance-debugging` verification run with capped loop limits confirmed the repaired current chain now progresses through `execution -> official tests -> analyzer -> searcher -> skill_creator -> critic -> judger -> next skill execution` instead of failing immediately at internal-agent timeout. The run was stopped manually once the closed-loop behavior was confirmed.

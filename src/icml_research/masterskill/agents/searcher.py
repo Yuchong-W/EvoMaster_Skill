@@ -72,6 +72,22 @@ Return a JSON with:
     def run(self, problem_description: str, problem_type: str, domain: str,
             problem_modeling: str, memory_context: dict) -> dict:
         """Run search for a problem."""
+        fallback = {
+            "search_summary": (
+                "Fallback search: prioritize bundled task skills and known effective methods "
+                "before inventing a disconnected new approach."
+            ),
+            "new_methods_found": [],
+            "relevant_knowledge": [
+                f"Treat this as a {problem_type} problem in {domain}.",
+                "Avoid repeating methods already marked ineffective or previously tried.",
+                "Use bundled task skills as first-class solve components when available.",
+            ],
+            "recommended_approach": (
+                "Compose bundled task skills with the verifier contract first, then add only "
+                "the smallest missing end-to-end step needed to produce validated artifacts."
+            ),
+        }
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -86,4 +102,4 @@ Return a JSON with:
             )}
         ]
 
-        return self.chat_json(messages)
+        return self.chat_json(messages, fallback=fallback)

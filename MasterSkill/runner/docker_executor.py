@@ -372,7 +372,12 @@ class DockerExecutor:
             workspace = Path(tmpdir) / "context"
             shutil.copytree(context_path, workspace)
             dockerfile = workspace / "Dockerfile"
-            dockerfile.write_text(self._rewrite_dockerfile_for_resilient_builds(dockerfile.read_text()))
+            dockerfile.write_text(
+                self._rewrite_dockerfile_for_resilient_builds(
+                    dockerfile.read_text(),
+                    build_timeout_seconds=self._task_build_timeout_seconds(task_dir),
+                )
+            )
             self._docker_build(
                 context_path=workspace,
                 dockerfile="Dockerfile",
@@ -400,7 +405,10 @@ class DockerExecutor:
         if not test_script.exists():
             return base_image_name
 
-        bootstrap = self._extract_test_bootstrap_commands(test_script.read_text())
+        bootstrap = self._extract_test_bootstrap_commands(
+            test_script.read_text(),
+            build_timeout_seconds=self._task_build_timeout_seconds(task_dir),
+        )
         if not bootstrap:
             self._log(f"no verifier bootstrap needed task={task_id}")
             return base_image_name
@@ -447,12 +455,17 @@ class DockerExecutor:
                 return base_image_name
         return base_image_name
 
-    def _extract_test_bootstrap_commands(self, script_text: str) -> list[str]:
+    def _extract_test_bootstrap_commands(
+        self,
+        script_text: str,
+        build_timeout_seconds: Optional[int] = None,
+    ) -> list[str]:
         """Extract common verifier bootstrap steps that are safe to prewarm."""
         commands: list[str] = []
         apt_packages: list[str] = []
         pip_packages: list[str] = []
         uvx_with_packages: list[str] = []
+        build_timeout = build_timeout_seconds or self._apt_build_timeout_seconds()
 
         for line in self._iter_shell_commands(script_text):
             if not line or line.startswith("#"):
@@ -472,8 +485,8 @@ class DockerExecutor:
         if apt_packages:
             unique_packages = " ".join(dict.fromkeys(apt_packages))
             commands.append(
-                f"{self._apt_update_command()} && "
-                f"{self._apt_install_command(unique_packages)}"
+                f"{self._apt_update_command(build_timeout)} && "
+                f"{self._apt_install_command(unique_packages, build_timeout)}"
             )
 
         if "uvx" in script_text:
@@ -683,7 +696,11 @@ class DockerExecutor:
             return text
         return text[: limit - 3] + "..."
 
-    def _rewrite_dockerfile_for_resilient_builds(self, dockerfile_text: str) -> str:
+    def _rewrite_dockerfile_for_resilient_builds(
+        self,
+        dockerfile_text: str,
+        build_timeout_seconds: Optional[int] = None,
+    ) -> str:
         """Inject pip timeout defaults into task Dockerfiles without mutating benchmark data."""
         lines = dockerfile_text.splitlines()
         pip_env_lines = self._pip_env_block().strip().splitlines()
@@ -707,7 +724,7 @@ class DockerExecutor:
             f"pip install {pip_flags}",
             rewritten,
         )
-        build_timeout = self._apt_build_timeout_seconds()
+        build_timeout = build_timeout_seconds or self._apt_build_timeout_seconds()
         rewritten = re.sub(
             r"\bapt-get update\b",
             self._apt_update_command(build_timeout),
@@ -732,6 +749,22 @@ class DockerExecutor:
     def _apt_build_timeout_seconds(self) -> int:
         """Allow colder first-time image builds to finish after Docker cache resets."""
         return 300
+
+    def _task_build_timeout_seconds(self, task_dir: Path) -> int:
+        """Use task-specific build budgets when they are higher than the global floor."""
+        task_toml = task_dir / "task.toml"
+        configured_timeout = 0.0
+        if task_toml.exists():
+            try:
+                import tomllib
+
+                task_config = tomllib.loads(task_toml.read_text())
+                configured_timeout = float(
+                    task_config.get("environment", {}).get("build_timeout_sec", 0.0) or 0.0
+                )
+            except Exception:
+                configured_timeout = 0.0
+        return max(self._apt_build_timeout_seconds(), int(configured_timeout or 0))
 
     def _apt_get_options(self) -> str:
         """Return apt transport options tuned for flaky mirror connectivity."""
@@ -1196,6 +1229,9 @@ class DockerExecutor:
             "/root/.claude",
             "/root/.codex",
             "/root/.skills",
+            "/root/.cache",
+            "/root/.npm",
+            "/tmp/.cache",
         )
         safe_roots = (
             "/root",
@@ -1210,9 +1246,39 @@ class DockerExecutor:
         )
         if path in safe_roots:
             return False
+        if self._is_cache_path(path):
+            return False
         if any(path == prefix or path.startswith(prefix + "/") for prefix in protected_prefixes):
             return False
         return any(path.startswith(root + "/") for root in safe_roots)
+
+    def _is_cache_path(self, path: str) -> bool:
+        """Filter cache trees that can be huge or unstable to archive."""
+        normalized = self._normalize_container_path(path)
+        transient_prefixes = (
+            "/tmp/tsx-",
+            "/tmp/v8-compile-cache-",
+            "/tmp/playwright-download-",
+        )
+        if any(normalized == prefix or normalized.startswith(prefix) for prefix in transient_prefixes):
+            return True
+        if "/.next/cache/" in normalized:
+            return True
+        if normalized.startswith("/home/"):
+            parts = normalized.split("/")
+            if len(parts) >= 4 and parts[3] == ".cache":
+                return True
+        cache_markers = (
+            "/.cache/",
+            "/huggingface/",
+            "/pip/",
+            "/npm/",
+        )
+        if any(marker in normalized for marker in cache_markers):
+            parent = normalized.rsplit("/", 1)[0]
+            if parent.endswith(".cache") or "/.cache/" in normalized:
+                return True
+        return False
 
     def _is_text_preview_path(self, path: str) -> bool:
         """Return whether a path should be previewed as text."""
@@ -1513,9 +1579,13 @@ class DockerExecutor:
         lowered = model.lower()
         if "5.1" in lowered:
             return "high"
+        if "5.2" in lowered:
+            return "medium"
+        if "5.3" in lowered:
+            return "high"
         if "5.4" in lowered:
-            return "xhigh"
-        return "xhigh"
+            return "high"
+        return "medium"
 
     def _build_execution_plan(
         self,

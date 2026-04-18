@@ -50,6 +50,7 @@ stage_known_paths() {
     MasterSkill/core \
     MasterSkill/judge \
     MasterSkill/memory \
+    MasterSkill/proposer \
     MasterSkill/runner \
     MasterSkill/skill \
     MasterSkill/evolved_skills \
@@ -58,7 +59,9 @@ stage_known_paths() {
     src/icml_research/masterskill/main.py \
     src/icml_research/masterskill/agents \
     src/icml_research/masterskill/core \
+    src/icml_research/masterskill/judge \
     src/icml_research/masterskill/memory \
+    src/icml_research/masterskill/proposer \
     src/icml_research/masterskill/runner \
     src/icml_research/masterskill/skill
 }
@@ -114,6 +117,33 @@ print(" | ".join(parts))
 PY
 }
 
+json_field() {
+  local json_path="$1"
+  local field_name="$2"
+  python3 - "$json_path" "$field_name" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+field_name = sys.argv[2]
+if not path.exists():
+    print("")
+    raise SystemExit(0)
+
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+value = data.get(field_name, "")
+if value is None:
+    value = ""
+print(str(value))
+PY
+}
+
 run_and_record() {
   local label="$1"
   local command="$2"
@@ -126,6 +156,8 @@ run_and_record() {
   local exit_code=$?
   local summary
   summary="$(summarize_json "$json_path")"
+  RUN_STATUS="$(json_field "$json_path" "status")"
+  RUN_FAILURE_CLASS="$(json_field "$json_path" "failure_class")"
   log "finished: $label exit_code=$exit_code"
   log "summary: $summary"
   append_resume "$label -> exit_code=$exit_code; $summary"
@@ -165,10 +197,57 @@ declare -a JSONS=(
   "$CURRENT_DATA/benchmark_runs/latest/taxonomy-tree-merge.json"
 )
 
+BACKOFF_REPEAT_THRESHOLD="${MASTERSKILL_BACKOFF_REPEAT_THRESHOLD:-2}"
+BACKOFF_COOLDOWN_SLOTS="${MASTERSKILL_BACKOFF_COOLDOWN_SLOTS:-2}"
+RUN_STATUS=""
+RUN_FAILURE_CLASS=""
+declare -a LAST_RESULT_KEYS=()
+declare -a REPEAT_COUNTS=()
+declare -a COOLDOWN_UNTIL=()
+
+record_slot_result() {
+  local slot="$1"
+  local label="$2"
+  local slot_index="$3"
+  local result_key=""
+
+  if [ -n "$RUN_FAILURE_CLASS" ]; then
+    result_key="failure:$RUN_FAILURE_CLASS"
+  elif [ -n "$RUN_STATUS" ]; then
+    result_key="status:$RUN_STATUS"
+  else
+    result_key="status:unknown"
+  fi
+
+  local last_key="${LAST_RESULT_KEYS[$slot]:-}"
+  local repeat_count=1
+  if [ "$result_key" = "$last_key" ]; then
+    repeat_count=$(( ${REPEAT_COUNTS[$slot]:-0} + 1 ))
+  fi
+
+  LAST_RESULT_KEYS[$slot]="$result_key"
+  REPEAT_COUNTS[$slot]="$repeat_count"
+
+  if [[ "$result_key" == failure:* ]] && [ "$repeat_count" -ge "$BACKOFF_REPEAT_THRESHOLD" ]; then
+    COOLDOWN_UNTIL[$slot]=$(( slot_index + BACKOFF_COOLDOWN_SLOTS + 1 ))
+    log "backoff: $label repeated_result=$result_key count=$repeat_count cooldown_slots=$BACKOFF_COOLDOWN_SLOTS"
+    append_resume "$label -> cooldown scheduled after repeated $result_key (count=$repeat_count, skip_until_slot=${COOLDOWN_UNTIL[$slot]})"
+    append_devlog "$label cooldown" "repeated_result=$result_key; count=$repeat_count; skip_until_slot=${COOLDOWN_UNTIL[$slot]}"
+    REPEAT_COUNTS[$slot]=0
+  fi
+}
+
 index=0
 while within_deadline; do
   slot=$(( index % ${#LABELS[@]} ))
+  if [ "${COOLDOWN_UNTIL[$slot]:-0}" -gt "$index" ]; then
+    log "skipping: ${LABELS[$slot]} due to cooldown until slot ${COOLDOWN_UNTIL[$slot]}"
+    append_resume "${LABELS[$slot]} -> skipped due to repeated failure cooldown (current_slot=$index, resume_at=${COOLDOWN_UNTIL[$slot]})"
+    index=$(( index + 1 ))
+    continue
+  fi
   run_and_record "${LABELS[$slot]}" "${COMMANDS[$slot]}" "${JSONS[$slot]}"
+  record_slot_result "$slot" "${LABELS[$slot]}" "$index"
   index=$(( index + 1 ))
 done
 

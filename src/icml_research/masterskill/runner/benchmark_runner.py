@@ -652,7 +652,7 @@ class BenchmarkRunner:
             problem_modeling=context.problem_modeling or "direct_solution",
             research_output=ResearchOutput(
                 analysis=analysis.get("root_cause", ""),
-                search_summary=search_result.get("search_summary", ""),
+                search_summary=self._summarize_search_result(search_result),
             ),
             effective_methods=effective_methods,
             bundled_task_skills=context.bundled_skills_summary,
@@ -671,10 +671,26 @@ class BenchmarkRunner:
         return ResearchOutput(
             skill=skill,
             analysis=analysis.get("root_cause", ""),
-            search_summary=search_result.get("search_summary", ""),
+            search_summary=self._summarize_search_result(search_result),
             new_method=True,
             critic_approved=True,
         )
+
+    def _summarize_search_result(self, search_result: dict) -> str:
+        """Keep the most actionable parts of Searcher output for SkillCreator."""
+        parts: list[str] = []
+        search_summary = str(search_result.get("search_summary", "")).strip()
+        if search_summary:
+            parts.append(search_summary)
+        recommended = str(search_result.get("recommended_approach", "")).strip()
+        if recommended:
+            parts.append(f"Recommended approach: {recommended}")
+        relevant_knowledge = search_result.get("relevant_knowledge") or []
+        if relevant_knowledge:
+            trimmed = [str(item).strip() for item in relevant_knowledge if str(item).strip()]
+            if trimmed:
+                parts.append("Relevant knowledge:\n" + "\n".join(f"- {item}" for item in trimmed[:5]))
+        return "\n\n".join(parts)
 
     def _get_previously_tried_methods(self, context: TaskContext) -> str:
         """Get methods previously tried for this task."""

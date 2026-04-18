@@ -2,6 +2,7 @@
 
 from abc import ABC
 from typing import Any, Optional
+import copy
 import json
 import os
 import subprocess
@@ -84,12 +85,12 @@ class BaseAgent(ABC):
         """Choose a bounded timeout for internal Codex agent calls."""
         lowered = self._codex_model().lower()
         if "5.1" in lowered or "5.2" in lowered:
-            return 180
+            return 120
         if "5.3" in lowered:
-            return 240
+            return 180
         if "5.4" in lowered:
-            return 300
-        return 180
+            return 240
+        return 120
 
     def _normalize_message_content(self, content: Any) -> str:
         if isinstance(content, str):
@@ -158,12 +159,21 @@ class BaseAgent(ABC):
                 result = run_once(primary_effort, timeout_seconds)
             except subprocess.TimeoutExpired:
                 fallback_effort = "medium"
-                fallback_timeout = min(timeout_seconds, 120)
+                fallback_timeout = max(60, timeout_seconds // 2)
                 self._log(
                     f"codex timeout model={self.model}; retrying with effort={fallback_effort} "
                     f"timeout={fallback_timeout}s"
                 )
-                result = run_once(fallback_effort, fallback_timeout)
+                try:
+                    result = run_once(fallback_effort, fallback_timeout)
+                except subprocess.TimeoutExpired as exc:
+                    self._log(
+                        f"codex timeout model={self.model}; giving up after second timeout "
+                        f"timeout={fallback_timeout}s"
+                    )
+                    raise RuntimeError(
+                        f"Codex CLI timed out after {timeout_seconds}s and retry {fallback_timeout}s"
+                    ) from exc
             if result.returncode != 0:
                 error = result.stderr.strip() or result.stdout.strip()
                 self._log(f"codex failed model={self.model} error={error[:200]}")
@@ -173,6 +183,18 @@ class BaseAgent(ABC):
                 return output_file.read_text().strip()
             self._log(f"codex finished model={self.model} (stdout)")
             return result.stdout.strip()
+
+    def _extract_json_content(self, content: str) -> str:
+        """Extract a JSON payload from fenced or raw model output."""
+        if "```json" in content:
+            start = content.find("```json") + 7
+            end = content.find("```", start)
+            return content[start:end if end != -1 else None].strip()
+        if "```" in content:
+            start = content.find("```") + 3
+            end = content.find("```", start)
+            return content[start:end if end != -1 else None].strip()
+        return content.strip()
 
     def chat(self, messages: list[dict], **kwargs) -> str:
         """Call LLM with messages."""
@@ -191,19 +213,18 @@ class BaseAgent(ABC):
 
         raise RuntimeError("No OpenAI API key or Codex ChatGPT login available")
 
-    def chat_json(self, messages: list[dict], **kwargs) -> dict:
+    def chat_json(self, messages: list[dict], fallback: Optional[dict] = None, **kwargs) -> dict:
         """Call LLM and parse JSON response."""
-        content = self.chat(messages, **kwargs)
-        # Try to extract JSON from response
-        if "```json" in content:
-            start = content.find("```json") + 7
-            end = content.find("```", start)
-            content = content[start:end]
-        elif "```" in content:
-            start = content.find("```") + 3
-            end = content.find("```", start)
-            content = content[start:end]
-        return json.loads(content.strip())
+        try:
+            content = self.chat(messages, **kwargs)
+            return json.loads(self._extract_json_content(content))
+        except Exception as exc:
+            if fallback is None:
+                raise
+            self._log(
+                f"json fallback model={self.model} reason={exc.__class__.__name__}: {str(exc)[:160]}"
+            )
+            return copy.deepcopy(fallback)
 
     def run(self, input_data: Any) -> Any:
         """Run the agent with input data."""
