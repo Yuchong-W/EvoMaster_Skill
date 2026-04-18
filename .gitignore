@@ -13,3 +13,4 @@ MasterSkill/case/tasks/**/.next/
 MasterSkill/case/tasks/**/playwright-report/
 MasterSkill/case/tasks/**/test-results/
 MasterSkill/masterskill_data/shallow/skills/react-nextjs-performance-repair/
+MasterSkill/masterskill_data/shallow/skills/taxonomy-tree-merge-lite/

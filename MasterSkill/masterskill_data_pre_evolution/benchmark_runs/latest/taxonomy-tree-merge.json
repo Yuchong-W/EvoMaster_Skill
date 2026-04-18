@@ -1,10 +1,10 @@
 {
-  "run_id": "acf078bb3e51",
+  "run_id": "d700c31496bf",
   "task_id": "taxonomy-tree-merge",
   "status": "abandoned",
-  "started_at": "2026-04-18T01:21:15.182732+00:00",
-  "finished_at": "2026-04-18T01:32:06.881670+00:00",
-  "duration_seconds": 717.2174208470024,
+  "started_at": "2026-04-18T12:27:10.333963+00:00",
+  "finished_at": "2026-04-18T12:40:33.998790+00:00",
+  "duration_seconds": 724.879040881,
   "problem_type": "knowledge_bottleneck",
   "domain": "ml/nlp",
   "problem_modeling": "generation",
@@ -19,14 +19,16 @@
       "passed": false,
       "model": "gpt-5.4",
       "score": 0.0,
-      "duration_seconds": 697.6744522329973,
+      "duration_seconds": 704.9418234609984,
       "failure_class": "timeout",
       "skill_id": "",
       "routing_reason": "task.toml difficulty=hard; moderate instruction length",
-      "input_tokens": 0,
-      "cached_input_tokens": 0,
-      "output_tokens": 0,
-      "notes": "Model could not solve autonomously"
+      "input_tokens": 892330,
+      "cached_input_tokens": 870144,
+      "output_tokens": 30314,
+      "notes": "Model could not solve autonomously",
+      "effective_input_tokens": 22186,
+      "effective_total_tokens": 52500
     }
   ]
 }

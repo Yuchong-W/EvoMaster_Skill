@@ -10,7 +10,7 @@
 
 ---
 
-## 2026-04-17 最新状态
+## 2026-04-18 最新状态
 
 ### 会话恢复入口
 
@@ -18,8 +18,7 @@
   - [session_resume.md](/home/yuchong/auto-research-team/MasterSkill/session_resume.md)
 - 这份文件记录了：
   - 当前已完成的 pre-evolution baseline
-  - 哪两个 baseline 结果是 stale、需要补跑
-  - Docker 恢复后的第一条命令
+  - current/evolved 与 pre-evolution 的最新对照结论
   - 下一步比较实验该怎么继续
 
 ### 已验证结果
@@ -45,6 +44,14 @@
   - 当前记录到的真实收益：
     - `duration 148.58s -> 131.10s`
     - 输出 artifacts 与 bundled checker / linter 一致通过
+- `react-performance-debugging`
+  - current/evolved 最新结果已稳定通过
+  - pure pre-evolution baseline 现在也已补跑并通过
+  - 因此这个任务现在应按 runtime / effective tokens / stability 比较，而不是只看 pass/fail
+- `taxonomy-tree-merge`
+  - current/evolved 最新结果已稳定通过
+  - pure pre-evolution baseline 补跑后仍然超时失败
+  - 因此它是当前最清晰的 coverage expansion 证据
 
 ### 当前系统能力
 
@@ -69,11 +76,10 @@
   - 是否减少 token / runtime
   - 是否把超长 task-local skill 压缩成更短但仍可 passing 的 solve path
 - 当前仍然存在的核心问题是：
-  - Docker daemon 当前不稳定，导致剩余两个 baseline task 还没补完
-  - `react-performance-debugging` 和 `taxonomy-tree-merge` 的 pre-evolution 记录目前是 stale，需要在 Docker 恢复后重跑
   - `enterprise-information-search` 的 task-required `tokens` 字段仍然是 task-level numeric helper，不是模型 runtime 的真实 usage telemetry
   - 部分候选 skill 仍会因为 skill 文本膨胀而增加 `skill_md_size`，需要继续压缩 prompt 负担
   - 还需要把这种“pass 后继续优化并正式接受收益”的路径复制到更多 hard tasks
+  - 需要把已经拿到的 solved-vs-failed / solved-vs-solved 对照结果系统化整理成面向最终目标的比较结论
 
 ### 对论文分类的解释
 

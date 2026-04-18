@@ -849,6 +849,46 @@ Current local case pool size:
 - Post-pass optimization attempted one candidate skill, `react-nextjs-performance-repair`, but that candidate failed the official real test and was not accepted.
 - Net effect: `react-performance-debugging` is now a confirmed solved current/evolved task, and the control-plane/runtime fixes are no longer blocked by the previous fatal internal-agent timeout chain on this task.
 
+### 2026-04-18 20:15 CST Taxonomy Current-Chain Breakthrough
+
+- Re-ran `python3 run_local.py --task taxonomy-tree-merge --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data --post-solve-optimization-rounds 1 --max-research-cycles 3` with real host Docker access.
+- New latest run `7fca7f410e32` finished `solved`, replacing the older `timeoutexpired` current record `8f0054b678e5`.
+- The solve came directly from `base_attempt`:
+  - `duration_seconds = 688.11`
+  - `input_tokens = 1487264`
+  - `cached_input_tokens = 1459840`
+  - `output_tokens = 24246`
+  - `effective_total_tokens = 51670`
+- Post-pass optimization attempted one candidate skill, `taxonomy-tree-merge-lite`, but that candidate failed the official real test and was not accepted.
+- Net effect: `taxonomy-tree-merge` is now also a confirmed solved current/evolved task, so the immediate remaining comparison gap is no longer the evolved chain; it is the stale pre-evolution baselines for `react-performance-debugging` and `taxonomy-tree-merge`.
+
+### 2026-04-18 20:40 CST Pre-Evolution Baseline Refresh
+
+- Re-ran the stale baseline pair with:
+  - `python3 run_local.py --tasks react-performance-debugging taxonomy-tree-merge --pre-evolution-baseline --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data_pre_evolution`
+- `react-performance-debugging`
+  - new latest baseline run `5c939012e58b`
+  - `status = solved`
+  - `base_attempt` passed directly
+  - `duration_seconds = 560.43`
+  - `input_tokens = 1366807`
+  - `cached_input_tokens = 1335808`
+  - `output_tokens = 16542`
+  - `effective_total_tokens = 47541`
+- `taxonomy-tree-merge`
+  - new latest baseline run `d700c31496bf`
+  - `status = abandoned`
+  - `failure_class = timeout`
+  - `base_attempt` still did not solve autonomously
+  - `duration_seconds = 704.94`
+  - `input_tokens = 892330`
+  - `cached_input_tokens = 870144`
+  - `output_tokens = 30314`
+  - `effective_total_tokens = 52500`
+- Comparison implication after the refresh:
+  - `react-performance-debugging`: current/evolved and pure baseline now both pass, so future work should compare runtime, effective tokens, and stability instead of treating it as a pure pass/fail gain.
+  - `taxonomy-tree-merge`: current/evolved now passes while pure baseline still fails, so this remains the clearest current evidence that the MasterSkill runtime/control-plane changes materially expand task coverage on a hard case.
+
 ### 2026-04-18 16:04 CST Overnight run started
 
 - branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log

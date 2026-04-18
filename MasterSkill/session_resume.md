@@ -1,6 +1,6 @@
 # Session Resume
 
-Updated: 2026-04-17
+Updated: 2026-04-18
 
 ## Supplemental Note From Current Recovery Pass
 
@@ -51,6 +51,24 @@ Updated: 2026-04-17
   - accepted gain:
     - `duration 148.58s -> 131.10s`
 
+- `react-performance-debugging`
+  - latest evolved result: solved
+  - latest run:
+    - `run_id = 11cfecf9997e`
+    - `base_attempt` passed directly
+    - `duration_seconds ~= 679.14`
+    - `effective_total_tokens = 59630`
+  - post-pass candidate `react-nextjs-performance-repair` failed official real test and was not accepted
+
+- `taxonomy-tree-merge`
+  - latest evolved result: solved
+  - latest run:
+    - `run_id = 7fca7f410e32`
+    - `base_attempt` passed directly
+    - `duration_seconds ~= 688.11`
+    - `effective_total_tokens = 51670`
+  - post-pass candidate `taxonomy-tree-merge-lite` failed official real test and was not accepted
+
 ### Pre-evolution baseline
 
 Stored under:
@@ -75,71 +93,53 @@ Already measured:
   - file:
     - `/home/yuchong/auto-research-team/MasterSkill/masterskill_data_pre_evolution/benchmark_runs/latest/pddl-tpp-planning.json`
 
-Stale pre-evolution records that must be rerun after Docker recovers:
-
 - `react-performance-debugging`
-  - current baseline record is stale
-  - reason: it was recorded before the `test.sh`-only fix
-  - current stale file:
+  - pure base now also solved after the refresh rerun
+  - latest run:
+    - `run_id = 5c939012e58b`
+    - `duration_seconds ~= 560.43`
+    - `effective_total_tokens = 47541`
+  - file:
     - `/home/yuchong/auto-research-team/MasterSkill/masterskill_data_pre_evolution/benchmark_runs/latest/react-performance-debugging.json`
 
 - `taxonomy-tree-merge`
-  - current baseline record is stale
-  - reason: the batch run hit a Docker transport/build failure before the new retry handling
-  - current stale file:
+  - refreshed baseline still fails at pure base
+  - latest run:
+    - `run_id = d700c31496bf`
+    - `status = abandoned`
+    - `failure_class = timeout`
+    - `duration_seconds ~= 704.94`
+    - `effective_total_tokens = 52500`
+  - file:
     - `/home/yuchong/auto-research-team/MasterSkill/masterskill_data_pre_evolution/benchmark_runs/latest/taxonomy-tree-merge.json`
 
 ## Current Blocker
 
-The remaining baseline reruns are blocked by Docker daemon instability, not by repo logic.
+The immediate blocker is no longer stale baseline coverage. The main remaining work is comparison and extension:
 
-Observed symptoms:
-
-- Docker API `/version` returned `500`
-- WSL-side `docker` sometimes returned `Input/output error`
-- one baseline batch was interrupted by Docker build transport failure
+- compare current/evolved vs pre-evolution using runtime, effective tokens, and pass/fail where appropriate
+- identify which tasks show true coverage expansion versus harness/runtime recovery only
+- keep looking for hard tasks where post-pass optimization can produce an accepted skill instead of only a direct base solve
 
 ## First Steps After Restart
 
-1. Restore Docker.
-
-Recommended order:
-
-- first try restarting Docker Desktop without shutting down WSL
-- verify with:
-
-```bash
-docker version
-docker ps
-```
-
-If that still fails, only then use the heavier recovery path outside this session:
-
-- quit Docker Desktop
-- `wsl --shutdown`
-- relaunch Docker Desktop
-
-2. Rerun the two stale baseline tasks:
-
-```bash
-python3 run_local.py \
-  --tasks react-performance-debugging taxonomy-tree-merge \
-  --pre-evolution-baseline \
-  --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data_pre_evolution
-```
-
-3. Read the completed baseline files:
-
-```bash
-find masterskill_data_pre_evolution/benchmark_runs/latest -maxdepth 1 -name '*.json' | sort
-```
-
-4. Then compare pre-evolution vs evolved results for:
+1. Reopen the four current comparison files:
 
 - `enterprise-information-search`
 - `pddl-tpp-planning`
-- `react-performance-debugging` once baseline and evolved runs exist
-- `taxonomy-tree-merge` once baseline and evolved runs exist
+- `react-performance-debugging`
+- `taxonomy-tree-merge`
+
+2. Apply the comparison rule:
+
+- if pure base already passes, compare runtime, effective tokens, and stability
+- if pure base fails but evolved passes, treat that as the strongest coverage-expansion evidence
+
+3. Prioritize the next experiments accordingly:
+
+- `taxonomy-tree-merge` is now the clearest solved-vs-failed comparison pair
+- `react-performance-debugging` is now a runtime/token comparison task, not a pass/fail comparison task
+- the next hard-task push should look for tasks where post-pass optimization can produce an accepted reusable skill
 
 ## Comparison Rule Going Forward
 
