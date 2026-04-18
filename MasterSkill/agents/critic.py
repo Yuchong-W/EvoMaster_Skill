@@ -34,6 +34,9 @@ Reject if:
 - Just rephrasing the same idea
 - No concrete changes
 - "Grinding" (minor tweaks without substance)
+- The new skill is diagnostic-only and still lacks a plausible solve path
+- The new script only validates inputs, prints metadata, or inspects files without
+  materially advancing task completion
 
 Be strict but fair. Better to reject trivial changes than accept non-improvements."""
 
@@ -48,6 +51,7 @@ Be strict but fair. Better to reject trivial changes than accept non-improvement
 ## Your Evaluation
 
 Determine if the NEW submission is meaningfully different from OLD.
+Also judge whether the NEW submission is operationally useful, not merely diagnostic.
 
 Return a JSON with:
 {{
@@ -59,6 +63,22 @@ Return a JSON with:
 
     def run(self, old_submission: dict, new_submission: dict) -> dict:
         """Evaluate if change is meaningful."""
+        old_content = str(old_submission.get("content", "")).strip()
+        new_content = str(new_submission.get("content", "")).strip()
+        approved = bool(new_content) and new_content != old_content
+        fallback = {
+            "approved": approved,
+            "reason": (
+                "Fallback critic approved a non-empty changed submission."
+                if approved else
+                "Fallback critic rejected an empty or unchanged submission."
+            ),
+            "substantive_changes": (
+                ["Produced a non-empty updated submission with a changed solve path description."]
+                if approved else []
+            ),
+            "rejection_reason": "" if approved else "fallback critic found no substantive change",
+        }
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -67,7 +87,7 @@ Return a JSON with:
             )}
         ]
 
-        return self.chat_json(messages)
+        return self.chat_json(messages, fallback=fallback)
 
     def _format_submission(self, submission: dict) -> str:
         """Format a submission for comparison."""

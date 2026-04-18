@@ -80,6 +80,14 @@ IMPORTANT: Only change wording and presentation. Keep the core method intact."""
     def propose_fix(self, skill: SkillBundle, judger_feedback: JudgerFeedback,
                    trace_history: list) -> SkillBundle:
         """Propose small fixes based on Judger feedback."""
+        fallback = {
+            "skill_id": skill.skill_id,
+            "name": skill.name,
+            "description": skill.description,
+            "trigger_condition": skill.trigger_condition,
+            "usage": skill.usage,
+            "changes_made": ["Fallback QuickProposer kept the existing skill unchanged."],
+        }
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -92,7 +100,7 @@ IMPORTANT: Only change wording and presentation. Keep the core method intact."""
             )}
         ]
 
-        result = self.chat_json(messages, temperature=0.5)
+        result = self.chat_json(messages, temperature=0.5, fallback=fallback)
 
         return SkillBundle(
             skill_id=skill.skill_id,  # Keep same ID

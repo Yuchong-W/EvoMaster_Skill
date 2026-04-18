@@ -1,7 +1,6 @@
 """Shallow memory: Skill repository and trace."""
 
 import json
-import os
 from pathlib import Path
 from typing import Optional
 from dataclasses import asdict
@@ -46,11 +45,12 @@ class ShallowMemory:
         }
         meta_path.write_text(json.dumps(meta, indent=2))
 
-        # Write scripts
+        # Write support files.
         scripts_dir = skill_dir / "scripts"
-        for path, content in skill.scripts.items():
-            scripts_dir.mkdir(parents=True, exist_ok=True)
-            (scripts_dir / path).write_text(content)
+        for relative_path, content in skill.scripts.items():
+            file_path = scripts_dir / relative_path
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(content)
 
     def get_skill(self, skill_id: str) -> Optional[SkillBundle]:
         """Retrieve a skill by ID."""
@@ -68,9 +68,9 @@ class ShallowMemory:
         scripts_dir = skill_dir / "scripts"
         scripts = {}
         if scripts_dir.exists():
-            for f in scripts_dir.iterdir():
-                if f.is_file():
-                    scripts[f.name] = f.read_text()
+            for file_path in scripts_dir.rglob("*"):
+                if file_path.is_file():
+                    scripts[str(file_path.relative_to(scripts_dir))] = file_path.read_text()
 
         return SkillBundle(
             skill_id=meta["skill_id"],

@@ -71,6 +71,18 @@ Return a JSON with:
     def run(self, task_id: str, judger_criteria: dict,
             skill_summaries: list, feedbacks: list, trigger_count: int) -> dict:
         """Run reflection on Judger strictness."""
+        fallback = {
+            "diagnosis": "unclear",
+            "reasoning": (
+                "Fallback reflection: keep Judger stable and continue pushing for a more "
+                "operational end-to-end solve path before relaxing evaluation."
+            ),
+            "adjustments": [
+                "Keep the current Judger criteria unchanged for now.",
+                "Focus research on producing validated output artifacts and explicit verifier-contract checks.",
+            ],
+            "confidence": 0.2,
+        }
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -82,7 +94,7 @@ Return a JSON with:
             )}
         ]
 
-        return self.chat_json(messages, temperature=0.7)
+        return self.chat_json(messages, temperature=0.7, fallback=fallback)
 
     def _format_criteria(self, criteria: dict) -> str:
         if not criteria:

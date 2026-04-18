@@ -1,7 +1,7 @@
 [project]
-name = "icml-research-team"
+name = "evo-master-skill"
 version = "0.1.0"
-description = "End-to-end autonomous research team for ICML paper analysis"
+description = "Benchmark-driven skill discovery and evaluation runtime for SkillsBench tasks"
 requires-python = ">=3.10"
 dependencies = [
     "docker>=7.0.0",

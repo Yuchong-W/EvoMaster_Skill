@@ -1,0 +1,852 @@
+{
+  "enterprise-information-search": {
+    "task_id": "enterprise-information-search",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "enterprise-search",
+    "problem_modeling": "multi_step_deduction",
+    "attempts": [
+      {
+        "skill_id": "enterprise-artifact-search",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The run ended with `Error: Execution failed` and there is no evidence that `/root/answer.json` was created in the task container.",
+          "constraint_violation: Required task outputs were not produced: answers for all questions and per-question token logging in the specified JSON structure."
+        ],
+        "success_factors": [
+          "The agent began correctly by attempting to read the skill file and inspect the workspace."
+        ]
+      },
+      {
+        "skill_id": "enterprise-information-search-research-gate",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The actual contents of `/root/answer.json` were not shown, so required constraints cannot be verified (all questions answered, correct dict structure, answers al...",
+          "wrong_format: There is no evidence that each `answer` value is a list (including single-item answers), which is an explicit task requirement."
+        ],
+        "success_factors": [
+          "Claims to have written `/root/answer.json` in the required container path.",
+          "Attempted to follow skill workflow by opening the candidate and supporting skill files first."
+        ]
+      },
+      {
+        "skill_id": "enterprise-information-search-lite",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution ended with `Execution timed out`, so completion is not reliable.",
+          "wrong_format: The shown `/root/answer.json` content is truncated/incomplete (e.g., `\"https:/` in `q3`) and not valid complete JSON in the provided result.",
+          "constraint_violation: Required output schema appears incomplete for `q3` in the provided artifact (missing complete answer list/item and token field visibility due truncation)."
+        ],
+        "success_factors": [
+          "Attempted targeted retrieval rather than broad scan.",
+          "Used list format for multi-item answers in q1/q2.",
+          "Included token fields for at least q1/q2."
+        ]
+      },
+      {
+        "skill_id": "enterprise-info-direct-search",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The run ended with `Error: Execution failed` and does not provide the required `/root/answer.json` content for q1/q2/q3.",
+          "wrong_format: Required output schema cannot be verified (answers must be lists and each question must include a `tokens` string) because no final JSON was produced.",
+          "constraint_violation: Task requires logging consumed tokens in the output JSON; token accounting is not present in any delivered artifact."
+        ],
+        "success_factors": [
+          "Shows a structured retrieval approach (targeted search, alias disambiguation, evidence minimization).",
+          "Mentions schema validation intent (answers as lists, tokens as strings)."
+        ]
+      },
+      {
+        "skill_id": "enterprise-json-evidence-search",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The execution result does not provide the actual `/root/answer.json` content (or any concrete answers), so correctness of q1/q2/q3 cannot be verified.",
+          "wrong_format: Required output constraints are unverified: answers must be list-normalized and `tokens` must be a string per question. The log claims a schema check but shows no ...",
+          "constraint_violation: The execution transcript appears truncated (`Wrote /root/answer.json inside t`), indicating incomplete finalization/reporting of required deliverables."
+        ],
+        "success_factors": [
+          "Used targeted, narrow evidence search rather than broad corpus loading.",
+          "Explicitly considered distractor/alias risk and attempted disambiguation.",
+          "Planned schema validation for output structure."
+        ]
+      },
+      {
+        "skill_id": "enterprise-targeted-evidence-writeback",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "constraint_violation: The result explicitly states tokens were filled with a guessed constant (`123`) per question, not actual consumed tokens."
+        ],
+        "success_factors": [
+          "Followed a targeted retrieval workflow and attempted cross-product leakage control.",
+          "Wrote `/root/answer.json` and reports passing a contract checker.",
+          "Used list-normalized answer structure for q1/q2/q3."
+        ]
+      },
+      {
+        "skill_id": "enterprise-direct-evidence-writeback",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The execution result does not show the final contents of `/root/answer.json` or confirm that the file was successfully written.",
+          "wrong_format: Required output schema compliance is not demonstrated (per-question `answer` and `tokens` fields, list-normalized answers, and valid JSON dict structure).",
+          "constraint_violation: The task requires logging consumed tokens in the JSON file; the result only claims token handling but provides no verifiable numeric token values.",
+          "missing_output: The run appears incomplete/truncated (ends with 'I') and does not provide final validated answers."
+        ],
+        "success_factors": [
+          "Process appears evidence-first and scoped to relevant artifacts.",
+          "The agent attempted deduplication and list normalization.",
+          "The agent attempted post-write validation steps."
+        ]
+      },
+      {
+        "skill_id": "enterprise-direct-evidence-answer",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The provided `/root/answer.json` artifact is incomplete/truncated in the execution result (`q2` is cut mid-string and `q3` is not shown), so required outputs for...",
+          "wrong_format: As shown, the JSON snippet is syntactically invalid due to truncation/unterminated content, which fails the contract requirement of a Python-readable dict file."
+        ],
+        "success_factors": [
+          "Process shows deliberate narrowing and evidence-driven retrieval steps.",
+          "Result claims contract validation was run with bundled finalizer/checker.",
+          "`q1` is list-normalized and includes token metadata."
+        ]
+      },
+      {
+        "skill_id": "enterprise-targeted-evidence-answer",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The reported `/root/answer.json` artifact is truncated in the execution result (q2 is cut off and closing structure is missing), so the final file cannot be conf...",
+          "constraint_violation: The task asked to log consumed tokens; the file appears to contain small per-question estimates (e.g., 106/100/92) rather than actual consumed token counts..."
+        ],
+        "success_factors": [
+          "Used list-form answers, consistent with the normalization requirement.",
+          "Included `tokens` fields for each question key.",
+          "Reported running validation/finalizer steps before writing output."
+        ]
+      },
+      {
+        "skill_id": "enterprise-direct-evidence-answer",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": true,
+        "duration_seconds": 406.8151232899909,
+        "input_tokens": 1378398,
+        "cached_input_tokens": 1296256,
+        "output_tokens": 16209,
+        "blocking_issues": [],
+        "success_factors": [
+          "Produced /root/answer.json at the required path.",
+          "Output structure matches required q1/q2/q3 dict schema with answer and tokens.",
+          "All answers are normalized as lists, including multi-item outputs.",
+          "JSON appears valid and Python-readable."
+        ]
+      },
+      {
+        "skill_id": "enterprise-direct-answer-minimal",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": true,
+        "duration_seconds": 343.18043562798994,
+        "input_tokens": 1019865,
+        "cached_input_tokens": 967168,
+        "output_tokens": 13847,
+        "blocking_issues": [],
+        "success_factors": [
+          "Produced `/root/answer.json` with required top-level keys `q1`, `q2`, `q3`.",
+          "Each question includes both `answer` and `tokens` fields.",
+          "`answer` values are lists, satisfying the list-format constraint.",
+          "Output is valid JSON and Python-readable."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.4",
+    "why_worked_analysis": "base model solved the task directly; problem_type=knowledge_bottleneck; domain=enterprise-search; problem_modeling=multi_step_deduction; routing=task.toml difficulty=hard",
+    "effective_skill_id": null
+  },
+  "financial-modeling-qa": {
+    "task_id": "financial-modeling-qa",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "financial modeling",
+    "problem_modeling": "direct_solution",
+    "attempts": [
+      {
+        "skill_id": "financial-modeling-pairwise-match-delta",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": true,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [],
+        "success_factors": [
+          "Critical output constraint appears satisfied: `/root/answer.txt` exists and contains only a single number (`24`).",
+          "The workflow indicates rule extraction from the PDF and game-level derivation from raw turn data rather than arbitrary guessing.",
+          "The agent detected and investigated a data-integrity anomaly (missing turn row) before finalizing."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.4",
+    "why_worked_analysis": "base model solved the task directly; problem_type=knowledge_bottleneck; domain=financial modeling; problem_modeling=direct_solution; routing=task.toml difficulty=hard",
+    "effective_skill_id": null
+  },
+  "pddl-tpp-planning": {
+    "task_id": "pddl-tpp-planning",
+    "problem_type": "tool_bottleneck",
+    "domain": "research",
+    "problem_modeling": "generation",
+    "attempts": [
+      {
+        "skill_id": "pddl-tpp-direct-plan-writer",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The reported `task02.txt` plan is incomplete/truncated (`unload(goods1, truck1, ...`) and does not show a full valid action sequence through completion.",
+          "wrong_format: Because the second plan text is cut off, the shown output is not syntactically valid as a complete PDDL plan artifact."
+        ],
+        "success_factors": [
+          "Read domain/problem context and produced a plausible full plan for task01.",
+          "Followed required one-action-per-line style.",
+          "Attempted plan validation via state replay before writing outputs."
+        ]
+      },
+      {
+        "skill_id": "pddl-tpp-pyperplan-batch",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": false,
+        "duration_seconds": 686.6534865669964,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "real_test: [Execution Log] I\u2019m reading the candidate skill and the task-local PDDL skills first, then I\u2019ll inspect `problem.json` and the task files to generate plans in the con..."
+        ],
+        "success_factors": [
+          "Handled all entries from `problem.json` rather than a single task.",
+          "Detected and diagnosed nondeterministic plan ordering with a concrete root cause.",
+          "Regenerated artifacts after stabilization and reported verifier parity success.",
+          "Explicitly targeted both required outputs: text plan and sibling `.pkl`."
+        ]
+      },
+      {
+        "skill_id": "pddl-tpp-batch-direct-verify",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": true,
+        "duration_seconds": 131.28854668600252,
+        "input_tokens": 363882,
+        "cached_input_tokens": 337920,
+        "output_tokens": 3157,
+        "blocking_issues": [],
+        "success_factors": [
+          "Processed the full `problem.json` batch and produced both required plan text outputs (`/app/task01.txt`, `/app/task02.txt`).",
+          "Plans are in the required format (one action per line, syntactically consistent action calls).",
+          "Used bundled solver and official checker, with explicit success signal (`tpp outputs OK`).",
+          "Additional strict linting was reported on both text plans."
+        ]
+      },
+      {
+        "skill_id": "pddl-tpp-batch-fastpath",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": true,
+        "duration_seconds": 131.095081174004,
+        "input_tokens": 365834,
+        "cached_input_tokens": 352768,
+        "output_tokens": 3257,
+        "blocking_issues": [],
+        "success_factors": [
+          "Produced expected plan artifacts for both tasks: `/app/task01.txt` and `/app/task02.txt`.",
+          "Plan files follow required line-by-line action format with syntactically plausible PDDL action calls.",
+          "Companion `.pkl` artifacts were generated for both tasks.",
+          "Reported successful execution of bundled validator and strict plan linter on both outputs."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.4",
+    "why_worked_analysis": "base model solved the task directly; problem_type=tool_bottleneck; domain=research; problem_modeling=generation; routing=task.toml difficulty=medium; category=research; hard tags present",
+    "effective_skill_id": null
+  },
+  "react-performance-debugging": {
+    "task_id": "react-performance-debugging",
+    "problem_type": "tool_bottleneck",
+    "domain": "web-performance",
+    "problem_modeling": "optimization",
+    "attempts": [
+      {
+        "skill_id": "react-best-practices",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution ended with `Error: Execution failed` and a timeout during production build, so there is no confirmed working result.",
+          "missing_output: Critical functional requirements were not verified: homepage product rendering, add-to-cart behavior, and compare advanced tab rendering (`data-testid=\"advanced-...",
+          "missing_output: Constraint compliance is not demonstrated (preserving `data-testid` attributes and `performance.mark()` in `ProductCard`)."
+        ],
+        "success_factors": [
+          "Root-cause hypotheses were concrete and aligned with common Next.js performance anti-patterns.",
+          "The proposed fixes covered the requested areas: API waterfall reduction, bundle size reduction, and rerender control."
+        ]
+      },
+      {
+        "skill_id": "browser-testing",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution explicitly failed and timed out (`Error: Execution failed`, `Execution timed out`), so there is no completed, verifiable result.",
+          "wrong_answer: Task requires actual fixes for slow cart, slow compare load, and slow API responses; the result only shows intent/plan text and build artifacts, not confirmed appl...",
+          "missing_output: Required verification is absent: no BEFORE vs AFTER metrics and no CLS measurement evidence, despite explicit instruction to verify with measurement scripts.",
+          "missing_output: No proof that critical functional requirements still work (homepage product data, add-to-cart behavior, compare advanced tab with `data-testid=\"advanced-content\"`)."
+        ],
+        "success_factors": [
+          "Reasonable root-cause hypotheses were identified (waterfalls, heavy compare-page deps, rerender pressure).",
+          "A technically plausible remediation plan was outlined."
+        ]
+      },
+      {
+        "skill_id": "react-best-practices",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution explicitly failed and timed out, so there is no completed deliverable demonstrating the required performance fixes.",
+          "wrong_answer: Required outcomes were not proven: homepage product rendering, cart add flow, compare advanced tab rendering, and API performance improvements were not validated.",
+          "missing_output: No evidence of final patched files or test results was provided; only build/cache artifacts and partial logs exist."
+        ],
+        "success_factors": [
+          "Identified likely high-impact bottlenecks (API waterfalls, heavy client libraries, rerender hotspots).",
+          "Attempted to gather timings and use build output for verification context."
+        ]
+      },
+      {
+        "skill_id": "browser-testing",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution explicitly failed and timed out; no completed implementation or validated final result was produced.",
+          "wrong_answer: Required outcomes were not demonstrated: homepage product rendering, cart add flow, compare advanced tab (`data-testid=\"advanced-content\"`), and API performance im...",
+          "missing_output: Task requires before/after performance validation (including CLS), but only partial baseline/debug notes are shown and no after metrics are provided.",
+          "missing_output: Critical constraints were not validated in the result (no proof that `performance.mark()` in `ProductCard` and required `data-testid` attributes were preserved)."
+        ],
+        "success_factors": [
+          "Identified plausible bottlenecks (sequential fetches, heavy compare bundle, rerender pressure).",
+          "Collected some baseline indicators (e.g., compare first-load size and checkout latency).",
+          "Attempted production-mode measurement rather than relying on dev-mode timing noise."
+        ]
+      },
+      {
+        "skill_id": "react-nextjs-performance-repair",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "wrong_answer: The execution explicitly failed and timed out (`Error: Execution failed`, `Execution timed out`), so the task was not completed end-to-end.",
+          "missing_output: No concrete final code-change summary or patch evidence is provided for the required fixes (API optimization, bundle reduction, excessive rendering).",
+          "missing_output: Required functional validations are missing: homepage product data, add-to-cart behavior, and compare advanced tab rendering (`data-testid=\"advanced-content\"`) w...",
+          "constraint_violation: Critical constraints cannot be confirmed (no evidence that `data-testid` attributes and `performance.mark()` calls in `ProductCard` were preserved)."
+        ],
+        "success_factors": [
+          "Reasonable diagnostic approach was attempted (baseline measurement and hotspot identification).",
+          "Performance-focused remediation plan was articulated (waterfalls, rerenders, bundle splitting)."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.4",
+    "why_worked_analysis": "base model solved the task directly; problem_type=tool_bottleneck; domain=web-performance; problem_modeling=optimization; routing=task.toml difficulty=hard",
+    "effective_skill_id": null
+  },
+  "taxonomy-tree-merge": {
+    "task_id": "taxonomy-tree-merge",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "ml/nlp",
+    "problem_modeling": "generation",
+    "attempts": [
+      {
+        "skill_id": "hierarchical-taxonomy-clustering",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: The required output files were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing.",
+          "wrong_answer: Execution ended with timeout/error, so no unified taxonomy result is available to evaluate against task rules (5-level structure, naming constraints, source distri...",
+          "wrong_format: Because no final CSV artifacts were generated, required output schema/columns cannot be verified or consumed."
+        ],
+        "success_factors": [
+          "Execution log shows a structured plan (preprocess, cluster, map all rows, post-process constraints).",
+          "The implementation considered edge cases like duplicate rows and unassigned hierarchy rows."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `unified_taxonomy_full.csv` and `unified_taxonomy_hierarchy.csv` in `/root/output/` are missing from the result evidence.",
+          "wrong_answer: The run ended with `Error: Execution failed` and `Execution timed out`, so no actual taxonomy merge result was delivered.",
+          "constraint_violation: Critical task constraints (5-level unified taxonomy, source mapping, hierarchy output format) were not verifiably satisfied because no final artifacts/cont..."
+        ],
+        "success_factors": [
+          "Clear, task-relevant plan was outlined.",
+          "Approach considered normalization, top-down merge, and provenance mapping.",
+          "The agent attempted to account for missing ML dependencies."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the executio...",
+          "wrong_answer: Execution terminated with `Error: Execution failed` and `Execution timed out`, so no usable taxonomy merge result exists.",
+          "constraint_violation: Critical task constraints (5-level unified taxonomy, naming rules, hierarchy fanout rules, source distribution balancing) were not verifiably satisfied bec..."
+        ],
+        "success_factors": [
+          "The execution attempted schema inspection and planned a deterministic pure-Python fallback strategy.",
+          "The approach mentions explicit mapping rules and post-run validation intent."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-schema-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; required output files `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not produced.",
+          "wrong_answer: No unified taxonomy result was generated, so none of the task-critical taxonomy constraints (5-level structure, naming rules, branching limits, source coverage/dis..."
+        ],
+        "success_factors": [
+          "Reasonable plan was outlined (schema-first merge, deterministic normalization, constraint-aware hierarchy tuning).",
+          "Input profiling and source-shape inspection were attempted before generation."
+        ]
+      },
+      {
+        "skill_id": "hierarchical-taxonomy-clustering",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are not present in the report...",
+          "wrong_answer: Execution ended with `Error: Execution failed` and `Execution timed out`, so no valid unified taxonomy result was delivered.",
+          "constraint_violation: Because no final outputs were generated, there is no evidence the critical taxonomy constraints (5-level structure, naming rules, sibling overlap limits, s..."
+        ],
+        "success_factors": [
+          "Identified a concrete bottleneck (row-by-row encoding) and implemented a batching optimization.",
+          "Monitored runtime/memory behavior and attempted iterative performance improvement."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-schema-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; required deliverables `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not produced.",
+          "wrong_answer: No unified taxonomy result was generated, so the task objective (merged 5-level taxonomy across Amazon/Facebook/Google) was not achieved.",
+          "constraint_violation: Critical constraints cannot be verified or are effectively unmet because there is no output artifact to validate (hierarchy depth, naming format, sibling o..."
+        ],
+        "success_factors": [
+          "Reasonable implementation plan was outlined.",
+          "Attempted to inspect existing pipeline and profile input taxonomies before merging."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-schema-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out before producing the required deliverables (`/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy....",
+          "wrong_answer: No merged taxonomy result is present, so none of the required taxonomy constraints (5 levels, naming rules, overlap limits, distribution balance, hierarchy structu...",
+          "wrong_format: Expected structured CSV outputs with required columns were not delivered."
+        ],
+        "success_factors": [
+          "The execution showed a structured plan aligned with the task goals.",
+          "The approach considered deterministic normalization and hierarchy validation."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-structured-json",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the executio...",
+          "wrong_format: The result contains only logs and instructions text, not the specified CSV outputs.",
+          "constraint_violation: Execution ended with timeout/errors (`stdin is closed`, `Execution timed out`), so none of the task constraints (5-level taxonomy, naming rules, branching ..."
+        ],
+        "success_factors": [
+          "Execution log indicates meaningful data profiling and taxonomy merge planning.",
+          "A deterministic harmonization/clustering approach was considered before implementation."
+        ]
+      },
+      {
+        "skill_id": "contract-first-taxonomy-tree-merge",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required output files `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not pro...",
+          "wrong_answer: No unified taxonomy result was delivered, so none of the task\u2019s critical constraints (5-level hierarchy, naming rules, distribution balance, sibling distinctness, ..."
+        ],
+        "success_factors": [
+          "The execution log shows reasonable understanding of the output contract and a concrete implementation plan.",
+          "The approach mentions deterministic normalization and hierarchy controls aligned with task intent."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing because execution...",
+          "wrong_format: No final structured taxonomy output is present to verify schema, depth fields, or unified level columns.",
+          "constraint_violation: Critical task constraints (5-level unified taxonomy, branch-size limits, naming rules, sibling overlap limits, and cross-source distribution) were not demo..."
+        ],
+        "success_factors": [
+          "Execution log shows a reasonable high-level plan for normalization, clustering, and validation.",
+          "The attempt recognized constraint risks (e.g., branch-size violations) before export."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-finalizer",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the executio...",
+          "wrong_format: Execution ended with `Error: Execution failed` and `Execution timed out`, so no schema-valid final artifact was returned.",
+          "constraint_violation: Critical task constraints cannot be verified (5-level taxonomy structure, category naming rules, sibling overlap limits, source distribution balance) becau..."
+        ],
+        "success_factors": [
+          "Execution log shows a reasonable plan and iterative diagnosis of coverage loss in the stock pipeline.",
+          "The approach considered preserving full row coverage and enforcing 5-level capping, which aligns with task intent."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the result.",
+          "wrong_answer: Execution ended with timeout and explicit failure (`Execution failed`, `Execution timed out`), so no unified taxonomy was actually generated.",
+          "wrong_format: Only instruction text/artifact metadata was returned; the required structured CSV outputs were not returned in the specified format."
+        ],
+        "success_factors": [
+          "Reasonable plan: inspected inputs and profiled hierarchy shape before merge design.",
+          "Intended deterministic merge strategy with controlled fanout was articulated."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first-patch",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; required output files `unified_taxonomy_full.csv` and `unified_taxonomy_hierarchy.csv` were not produced with usable content.",
+          "wrong_answer: No unified taxonomy result was generated, so none of the task\u2019s critical constraints (5-level mapping, naming rules, hierarchy balance, source distribution, requir..."
+        ],
+        "success_factors": [
+          "The run attempted source schema inspection and considered deterministic merging strategy.",
+          "The log indicates awareness of dependency constraints and intent to avoid unavailable heavy packages."
+        ]
+      },
+      {
+        "skill_id": "hierarchical-taxonomy-clustering",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required files `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not produced.",
+          "wrong_answer: No unified taxonomy result was generated, so none of the taxonomy quality constraints (5-level structure, naming rules, sibling distinctness, source distribution, ...",
+          "wrong_format: Required output schema/columns cannot be verified because no CSV artifacts were delivered."
+        ],
+        "success_factors": [
+          "Reasonable implementation plan was articulated.",
+          "Skill-aligned approach (embedding-based recursive clustering) was considered."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required output files `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` were not pro...",
+          "constraint_violation: No evidence that critical taxonomy constraints were satisfied (5-level unified mapping, 10-20 L1 categories, balanced hierarchy, naming rules, source distr...",
+          "wrong_format: The only visible artifact content is task instruction text, not schema-compliant CSV outputs."
+        ],
+        "success_factors": [
+          "Reasonable analysis of source differences and hierarchy constraints was started.",
+          "A concrete implementation plan was outlined before coding."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-contract-first-merge",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required output files were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the result e...",
+          "wrong_answer: Execution ended with `Error: Execution failed` and `Execution timed out`, so no unified taxonomy was actually generated.",
+          "constraint_violation: Because no taxonomy artifacts were generated, none of the critical task constraints (5-level hierarchy, category naming rules, branch-size bounds, source d..."
+        ],
+        "success_factors": [
+          "The execution log shows some structured planning (contract-first intent, input inspection, algorithm path evaluation)."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-oracle-guided",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the executio...",
+          "wrong_answer: Execution ended with `Execution failed` and `Execution timed out`, so no usable taxonomy merge result was generated.",
+          "wrong_format: Only task text/instruction artifacts were emitted; no structured merged taxonomy output in the specified CSV format was provided."
+        ],
+        "success_factors": [
+          "Reasonable plan: schema/contract verification before semantic merge.",
+          "Execution log indicates source-specific taxonomy ambiguity was being analyzed thoughtfully."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-contract-first",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed and timed out; the required output files (`/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv`) were not p...",
+          "wrong_format: No deliverable CSV content is available to verify required schemas/columns and 5-level taxonomy structure.",
+          "constraint_violation: Because no taxonomy outputs were produced, none of the critical taxonomy constraints (L1 size, subcategory cardinality, naming rules, overlap limits, sourc..."
+        ],
+        "success_factors": [
+          "Reasonable implementation plan was articulated (normalization, deterministic grouping, validation/export intent).",
+          "Input scale and schema were inspected before implementation."
+        ]
+      },
+      {
+        "skill_id": "taxonomy-tree-merge-deterministic-contract",
+        "quick_proposer_iterations": 0,
+        "research_triggered": true,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Required deliverables were not produced: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv` are missing from the reported...",
+          "wrong_answer: Execution terminated with `Error: Execution failed` and `Execution timed out`, so no unified taxonomy result was actually generated.",
+          "constraint_violation: Critical task constraints cannot be verified because no final taxonomy artifact exists (5-level mapping, top-level category count, fan-out bounds, naming/o..."
+        ],
+        "success_factors": [
+          "The execution log shows a concrete plan and some initial data profiling work.",
+          "There was intent to perform deterministic merge/validation rather than ad hoc mapping."
+        ]
+      }
+    ],
+    "final_status": "abandoned",
+    "what_worked": "",
+    "why_worked_analysis": "",
+    "effective_skill_id": null
+  }
+}

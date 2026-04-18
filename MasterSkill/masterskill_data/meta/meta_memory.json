@@ -1,0 +1,102 @@
+{
+  "knowledge_bottleneck::financial modeling::direct_solution": {
+    "problem_type": "knowledge_bottleneck",
+    "domain": "financial modeling",
+    "problem_modeling": "direct_solution",
+    "effective_methods": [
+      {
+        "method_id": "financial-modeling-pairwise-match-delta",
+        "description": "Solve workbook-based game questions by identifying the game index and winner metric from the background PDF, pairing odd and even games, and computing Player 1 wins minus Player 2 wins with a direct vectorized calculation. Optimized after successful solve. skill_md_size 30386 -> 3532",
+        "origin_task": "financial-modeling-qa",
+        "transferability": "high",
+        "conditions": "post_solve_optimization on task=financial-modeling-qa",
+        "hyperparameters": {}
+      }
+    ],
+    "ineffective_methods": [],
+    "success_factors": [
+      "post_solve_optimization: skill_md_size 30386 -> 3532"
+    ]
+  },
+  "tool_bottleneck::research::generation": {
+    "problem_type": "tool_bottleneck",
+    "domain": "research",
+    "problem_modeling": "generation",
+    "effective_methods": [
+      {
+        "method_id": "pddl-tpp-batch-fastpath",
+        "description": "Solve `pddl-tpp-planning` batches with the packaged pyperplan runner, then validate emitted `.txt` plans and sibling `.pkl` artifacts with the bundled checkers. Default path is solve -> verify -> stop. Optimized after successful solve. duration 148.58s -> 131.10s; skill_md_size regressed 1066 -> ...",
+        "origin_task": "pddl-tpp-planning",
+        "transferability": "medium",
+        "conditions": "post_solve_optimization on task=pddl-tpp-planning",
+        "hyperparameters": {}
+      }
+    ],
+    "ineffective_methods": [],
+    "success_factors": [
+      "post_solve_optimization: duration 148.58s -> 131.10s; skill_md_size regressed 1066 -> 1948"
+    ]
+  },
+  "knowledge_bottleneck::enterprise-search::multi_step_deduction": {
+    "problem_type": "knowledge_bottleneck",
+    "domain": "enterprise-search",
+    "problem_modeling": "multi_step_deduction",
+    "effective_methods": [
+      {
+        "method_id": "enterprise-direct-evidence-answer",
+        "description": "Answers q1/q2/q3 over /root/DATA with narrow alias-aware artifact search, minimal evidence capture, list-normalized outputs, and deterministic token logging that survives verifier checks. Optimized after successful solve. tokens 1684133 -> 1394607; skill_md_size regressed 4470 -> 5409",
+        "origin_task": "enterprise-information-search",
+        "transferability": "high",
+        "conditions": "post_solve_optimization on task=enterprise-information-search",
+        "hyperparameters": {}
+      },
+      {
+        "method_id": "enterprise-direct-answer-minimal",
+        "description": "Answers `q1`/`q2`/`q3` from `/root/question.txt` against `/root/DATA` with narrow alias-aware retrieval, minimal evidence capture, and deterministic finalization into verifier-safe `/root/answer.json`. Optimized after successful solve. duration 406.82s -> 343.18s; tokens 1394607 -> 1033712",
+        "origin_task": "enterprise-information-search",
+        "transferability": "high",
+        "conditions": "post_solve_optimization on task=enterprise-information-search",
+        "hyperparameters": {}
+      }
+    ],
+    "ineffective_methods": [],
+    "success_factors": [
+      "post_solve_optimization: tokens 1684133 -> 1394607; skill_md_size regressed 4470 -> 5409",
+      "post_solve_optimization: duration 406.82s -> 343.18s; tokens 1394607 -> 1033712"
+    ]
+  },
+  "tool_bottleneck::web-performance::optimization": {
+    "problem_type": "tool_bottleneck",
+    "domain": "web-performance",
+    "problem_modeling": "optimization",
+    "effective_methods": [],
+    "ineffective_methods": [
+      {
+        "method_id": "unknown",
+        "description": "problem_type=tool_bottleneck, domain=web-performance, modeling=optimization",
+        "failed_tasks": [
+          "react-performance-debugging"
+        ],
+        "failure_reason": "Could not solve within limits"
+      }
+    ],
+    "success_factors": []
+  },
+  "knowledge_bottleneck::ml/nlp::generation": {
+    "problem_type": "knowledge_bottleneck",
+    "domain": "ml/nlp",
+    "problem_modeling": "generation",
+    "effective_methods": [],
+    "ineffective_methods": [
+      {
+        "method_id": "unknown",
+        "description": "problem_type=knowledge_bottleneck, domain=ml/nlp, modeling=generation",
+        "failed_tasks": [
+          "taxonomy-tree-merge"
+        ],
+        "failure_reason": "Could not solve within limits"
+      }
+    ],
+    "success_factors": []
+  }
+}

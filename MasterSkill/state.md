@@ -10,6 +10,79 @@
 
 ---
 
+## 2026-04-17 最新状态
+
+### 会话恢复入口
+
+- 重启会话后优先看：
+  - [session_resume.md](/home/yuchong/auto-research-team/MasterSkill/session_resume.md)
+- 这份文件记录了：
+  - 当前已完成的 pre-evolution baseline
+  - 哪两个 baseline 结果是 stale、需要补跑
+  - Docker 恢复后的第一条命令
+  - 下一步比较实验该怎么继续
+
+### 已验证结果
+
+- `enterprise-information-search`
+  - 本地 official real test 已稳定通过
+  - `base_attempt` 仍可通过
+  - post-pass 优化现在也已经蒸馏出两个本地 official real-test passing skill：
+    - `enterprise-direct-evidence-answer`
+    - `enterprise-direct-answer-minimal`
+  - 当前更优的第二轮 skill 已记录到真实收益：
+    - `duration 406.82s -> 343.18s`
+    - `tokens 1394607 -> 1033712`
+- `financial-modeling-qa`
+  - 本地 official real test 已通过
+  - pass 后已经成功蒸馏出一个更紧凑、可复用的 task-local skill：
+    - `financial-modeling-pairwise-match-delta`
+- `pddl-tpp-planning`
+  - 本地 official real test 已通过
+  - `base_attempt` 可通过
+  - post-pass skill 现在也已经成功蒸馏并被系统接受：
+    - `pddl-tpp-batch-fastpath`
+  - 当前记录到的真实收益：
+    - `duration 148.58s -> 131.10s`
+    - 输出 artifacts 与 bundled checker / linter 一致通过
+
+### 当前系统能力
+
+- 可以直接从 repo 根目录用 `python3 run_local.py --task <task_id>` 运行
+- 现在已经有纯净基线模式：
+  - `python3 run_local.py --task <task_id> --pre-evolution-baseline`
+  - 这个模式会禁止 `base_attempt` 读取 task-local bundled skills
+  - 并且在 base attempt 后直接停止，不进入复用、研究、Judger 或 post-pass
+- hard case 的环境链路不再容易死在：
+  - `apt-get update` 无限挂起
+  - verifier 预热失败直接终止整条 real test
+  - 基础 attempt 预算过短导致的假阴性
+- post-pass optimization 已经从“一次性压缩尝试”升级成“带失败反馈的多轮优化”
+- Judger / artifact 链路现在会优先暴露小型输出成品：
+  - execution log 里先展示 output artifacts，再展示执行叙述
+  - Judger 会同时看到 execution result 的开头和结尾，而不是只看前 3000 字
+
+### 仍然存在的核心问题
+
+- 目前最强的 skill 贡献证据，已经从“只看 pass/fail”扩展到：
+  - 是否在固定预算下减少超时风险
+  - 是否减少 token / runtime
+  - 是否把超长 task-local skill 压缩成更短但仍可 passing 的 solve path
+- 当前仍然存在的核心问题是：
+  - Docker daemon 当前不稳定，导致剩余两个 baseline task 还没补完
+  - `react-performance-debugging` 和 `taxonomy-tree-merge` 的 pre-evolution 记录目前是 stale，需要在 Docker 恢复后重跑
+  - `enterprise-information-search` 的 task-required `tokens` 字段仍然是 task-level numeric helper，不是模型 runtime 的真实 usage telemetry
+  - 部分候选 skill 仍会因为 skill 文本膨胀而增加 `skill_md_size`，需要继续压缩 prompt 负担
+  - 还需要把这种“pass 后继续优化并正式接受收益”的路径复制到更多 hard tasks
+
+### 对论文分类的解释
+
+- `skillsbench_task_classification.md` 里的零通过分类仍然是历史 benchmark 报告结论
+- 当前本地结果不应改写那份历史分类
+- 但它已经说明：至少一部分 zero-pass task 之前同时受到了 harness fidelity、verifier bootstrap、timeout budget 的影响
+
+---
+
 ## 核心架构
 
 ### 目录结构

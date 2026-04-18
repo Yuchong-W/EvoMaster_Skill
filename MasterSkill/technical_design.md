@@ -1,5 +1,12 @@
 # MasterSkill Technical Design
 
+## Non-Negotiable Priorities
+
+1. The only success criterion is passing the real official task tests in the real execution environment.
+   Improvements that only look better in prompts, logs, or Judger output do not count unless they increase real pass rate.
+2. The primary object being optimized is the `skill`.
+   Runner, routing, judging, and memory changes are only justified when they help the system discover, reuse, refine, or execute better skills that pass real tests.
+
 ## Scope
 
 This document records the current technical routes for `MasterSkill`, including accepted architecture, rejected alternatives, package layout, model routing, execution strategy, and known limits.
@@ -17,6 +24,7 @@ The target loop is:
 5. Re-run the task with the skill in a real execution environment.
 6. Judge the result from execution artifacts and tests, not from the skill text alone.
 7. Store task experience and meta-memory for future reuse.
+8. If the task already passes, optionally continue with post-pass optimization to distill a lower-cost skill without losing correctness.
 
 ## Code Layout
 
@@ -30,6 +38,9 @@ Current policy:
 - `MasterSkill/` remains the direct execution path used for local debugging.
 - `src/icml_research/masterskill/` is kept in sync as the installable package target.
 - `pyproject.toml` and `scripts/run_research.py` provide the package-oriented entry path for the broader repo.
+- the `icml_research` package namespace is legacy naming from an earlier repo phase
+  and is retained for compatibility, not because the current project is still
+  centered on ICML paper-analysis workflows
 
 This dual-layout route was chosen because the repo already had working imports based on `MasterSkill/`, while packaging work had already started under `src/`.
 
@@ -73,6 +84,7 @@ Current implementation requirement:
 - research / skill creation
 - real test
 - judge / quick proposer / reflector loop
+- optional post-pass optimization loop after a solved result
 
 The current runner depends on `DockerExecutor` for any real task execution.
 
@@ -136,14 +148,14 @@ Current production route:
 
 1. Build the task image.
 2. Start the task container in keepalive mode.
-3. Copy instruction, skill, and tests into the container.
+3. Copy only the instruction and skill into the container for the model-facing phase.
 4. Create a temporary host workspace with helper scripts:
    - `task_shell`
    - `task_put`
    - `task_get`
 5. Run host-side `codex exec --ephemeral` using the currently logged-in ChatGPT account.
 6. Let Codex operate on the running container through `docker exec` and `docker cp`.
-7. Run official tests inside the container.
+7. Copy official tests into the container only after the model finishes, then run verification.
 8. Return execution log, artifacts, and test output to the runner.
 
 Runtime-cost controls layered onto this route:
@@ -156,6 +168,48 @@ Runtime-cost controls layered onto this route:
   - skill execution
   - official real test
 - debug logging behind `MASTERSKILL_DEBUG=1` for both executor and internal agents
+
+Research-context controls layered onto this route:
+
+- task-bundled skills from `environment/skills` are summarized into `TaskContext`
+- `Searcher` and `SkillCreator` both receive bundled-skill summaries
+- this biases research toward reusing task-local expert tooling before inventing a disconnected skill from scratch
+- task-local bundled skills are also loaded as executable seed candidates before cross-task transfer skills
+- bundled seed ordering is stabilized by original skill timestamp so curated task skills are tried before newly generated local variants
+
+Task-root controls layered onto this route:
+
+- when `MasterSkill/case` exists, it becomes the default task root
+- this keeps active task evolution in a repo-local case area instead of mutating the external
+  `/home/yuchong/skillsbench` tree by default
+
+Leakage controls layered onto this route:
+
+- task execution and official evaluation no longer share the same container
+- after model execution, only changed task artifacts from allowed writable roots are exported
+- official tests run in a fresh container restored only with those artifacts
+- `/tests`, `/solution`, Codex/Claude skill directories, and system paths are not restored into evaluation
+- host-side Codex still operates only inside an ephemeral helper workspace rather than the task root itself
+
+Loop-efficiency controls layered onto this route:
+
+- `QuickProposer` is now bypassed for clearly operational Judger failures
+- execution-layer failures such as missing outputs, wrong formats, timeouts, and dependency/runtime errors go straight back toward research instead of consuming wording-only refinement budget
+
+Post-pass optimization controls layered onto this route:
+
+- `post_solve_optimization_rounds` allows continuing to optimize after a task is already solved
+- optimization candidates are generated by `SkillCreator.optimize_skill()`
+- when the baseline solve came from the base model instead of a skill, optimization prompts explicitly frame the task as distillation of the successful behavior rather than compression of a previously failing bundled skill
+- failed optimization attempts feed their Judger and real-test failure summaries into the next optimization round
+- only materially improved candidates are persisted back to the task-local skill repository
+- large real runtime/token wins are allowed to outweigh moderate `skill_md_size` regressions, because official execution cost is the primary optimization target
+
+Judger-visibility controls layered onto this route:
+
+- executor summaries now put `[Output Artifacts]` before long execution narration for skill-guided runs
+- `Judger` now receives a compacted execution result that preserves both the beginning and the end of the transcript
+- this keeps final validated artifacts such as `/root/answer.json` visible even when the agent produced a long reasoning trace
 
 Why this route was accepted:
 
@@ -208,6 +262,11 @@ Current required task-side baseline:
 - tests are expected under `/tests`
 - execution artifacts must be writable in task-defined output paths
 
+Additional verifier-runtime assumptions:
+
+- verifier bootstrap may be flaky on Ubuntu mirrors and must be treated as a best-effort prewarm, not a hard prerequisite for running the test
+- if task-scoped verifier prewarm keeps failing, the executor must still continue with the base task image and run the official verifier there
+
 ## Test Strategy
 
 Current verification strategy is layered:
@@ -224,6 +283,17 @@ Result artifacts from task runs are persisted under:
 - `<data_root>/benchmark_runs/runs.jsonl`
 - `<data_root>/benchmark_runs/tasks/<task_id>.jsonl`
 - `<data_root>/benchmark_runs/latest/<task_id>.json`
+
+Optimization and trace artifacts are also persisted under:
+
+- `<data_root>/shallow/trace/<task_id>.jsonl`
+- `<data_root>/shallow/skills/<skill_id>/`
+
+## Current Limits
+
+- post-pass optimization is now looped and feedback-aware, but it still depends on the quality of the distilled skill prompt and currently has not yet converted `enterprise-information-search` into a passing optimized skill
+- the newest runtime/token forwarding fix landed after the first successful `financial-modeling-qa` optimization run, so that specific run records skill-size improvement more clearly than runtime/token improvement
+- paper-era `With Skills = 0%` classifications should still be treated as historical benchmark observations, not overwritten by local harness improvements
 
 Representative benchmark targets used during bring-up:
 
@@ -245,6 +315,9 @@ Representative runtime validation milestones:
 - The current execution router is metadata-driven and explicit, but still rule-based rather than learned.
 - Some verifier scripts still encode task-specific dependency setup patterns that are not yet lifted into reusable runtime prewarm rules.
 - Research-loop quality is now gated more by skill quality and agent prompting than by basic chain breakage.
+- `SkillBundle` still represents support files as text-only relative paths; binary assets are not yet first-class in the evolution format.
+- Some bundled task skills ship reference material outside `scripts/`; the current loader intentionally filters out `LICENSE` / `README`-style files and keeps executable/support files only.
+- Docker / WSL daemon availability is still an external operational dependency; when that layer is unstable, the benchmark loop cannot be fully exercised even if the code path is ready.
 
 ## Next Design Work
 
@@ -254,3 +327,4 @@ Representative runtime validation milestones:
 - Collapse duplicated legacy/package trees once package entrypoints become the default.
 - Replace the rule-based execution router with either benchmark-supplied routing metadata or a learned router once enough run history exists.
 - Improve the QuickProposer / research loop so hard tasks spend less time on wording-only revisions when execution artifacts show missing-output or timeout failures.
+- Promote failed-attempt persistence into richer loop control so repeated Judger / QuickProposer churn can trigger earlier strategy shifts without waiting for a final abandon state.

@@ -1,0 +1,32 @@
+{
+  "run_id": "a021af5ad6b7",
+  "task_id": "enterprise-information-search",
+  "status": "solved",
+  "started_at": "2026-04-17T11:02:45.624925+00:00",
+  "finished_at": "2026-04-17T11:08:00.138240+00:00",
+  "duration_seconds": 335.2385588210018,
+  "problem_type": "knowledge_bottleneck",
+  "domain": "enterprise-search",
+  "problem_modeling": "multi_step_deduction",
+  "final_score": 1.0,
+  "final_model": "gpt-5.4",
+  "failure_class": "",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": [
+    {
+      "stage": "base_attempt",
+      "passed": true,
+      "model": "gpt-5.4",
+      "score": 1.0,
+      "duration_seconds": 327.1104982540055,
+      "failure_class": "",
+      "skill_id": "",
+      "routing_reason": "task.toml difficulty=hard",
+      "input_tokens": 1122933,
+      "cached_input_tokens": 1036416,
+      "output_tokens": 13062,
+      "notes": ""
+    }
+  ]
+}

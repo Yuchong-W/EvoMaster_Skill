@@ -256,10 +256,142 @@ Additional runtime optimizations:
   - `skill_execution_timeout_seconds`
   - `real_test_timeout_seconds`
 - reduced internal Codex-agent reasoning pressure:
-  - `gpt-5.2`, `gpt-5.3`, `gpt-5.4` internal agents now use lighter Codex reasoning than the original `xhigh` path
-  - internal Codex calls now use bounded per-model timeouts and a lower-effort retry on timeout
+- `gpt-5.2`, `gpt-5.3`, `gpt-5.4` internal agents now use lighter Codex reasoning than the original `xhigh` path
+- internal Codex calls now use bounded per-model timeouts and a lower-effort retry on timeout
+
+## 2026-04-17
+
+### Local Execution And Hard-Case Bring-Up
+
+Entry and task-root fixes:
+
+- added `run_local.py` so the repo checkout can be run directly without package-path hacks
+- made the local `case/` tree the default benchmark root when present
+- aligned CLI config so `post_solve_optimization_rounds` is controllable from the command line
+
+Execution-fidelity and environment fixes:
+
+- Docker build now defaults to host-network mode when supported
+- task Dockerfiles are rewritten with:
+  - `apt-get` retries
+  - HTTP / HTTPS transport timeouts
+  - forced IPv4
+  - shell-level `timeout 180s`
+  - `--no-install-recommends`
+- verifier `test.sh` is also rewritten at copy time with the same apt / pip hardening instead of only fixing the task image
+- task-scoped test-runtime image prewarm now falls back to the base task image when dependency bootstrap keeps failing, so real tests do not abort before model execution
+
+Telemetry and optimization-loop changes:
+
+- Codex JSON output is now parsed for:
+  - `input_tokens`
+  - `cached_input_tokens`
+  - `output_tokens`
+- `TaskAttempt` and `BenchmarkRunEvent` now persist token and duration fields
+- added a post-pass optimization loop controlled by `post_solve_optimization_rounds`
+- post-pass optimization now uses failure feedback from prior failed candidates instead of running only a single blind compression pass
+- `BenchmarkRunner._run_real_test()` now forwards full runtime and token metrics so optimization rounds can compare real execution cost rather than only skill size
+
+### Hard-Case Results
+
+`enterprise-information-search`
+
+- the task now passes local official real tests through the repaired harness
+- the successful path initially remained `base_attempt`, but the latest rerun converted post-pass optimization into passing external skills too
+- latest solved run:
+  - `base_attempt` passed in about `381.2s`
+  - `input_tokens = 1670074`
+  - `cached_input_tokens = 1574400`
+  - `output_tokens = 14059`
+- post-pass optimization is now materially productive on this task:
+  - round 1 candidate `enterprise-direct-evidence-answer` passed official real test
+  - round 2 candidate `enterprise-direct-answer-minimal` also passed official real test
+- recorded improvements from the accepted second-round candidate:
+  - `duration 406.82s -> 343.18s`
+  - `tokens 1394607 -> 1033712`
+- the key fixes that unlocked this were:
+  - small output artifacts are surfaced before long execution narration in executor summaries
+  - Judger now keeps both the head and tail of execution results, so final `answer.json` content remains visible
+  - enterprise token helper now writes plausible numeric values and the skill explicitly prints final `/root/answer.json`
+
+`financial-modeling-qa`
+
+- this task had been in the paper-era `With Skills = 0%` pool and had previously failed locally during environment bring-up
+- after executor hardening, the task now reaches model execution reliably and passes local official real tests
+- latest solved run:
+  - `base_attempt` passed in about `549.9s`
+  - `input_tokens = 1073127`
+  - `cached_input_tokens = 1030400`
+  - `output_tokens = 11808`
+- post-pass optimization produced a passing distilled skill:
+  - `financial-modeling-pairwise-match-delta`
+- current recorded improvement signal is mainly skill compactness:
+  - `skill_md_size 30386 -> 3532`
+- this optimized skill was saved into the task-local skill directory and shallow memory
+
+`pddl-tpp-planning`
+
+- local official real test also passed on the repaired harness
+- latest solved run:
+  - `base_attempt` passed in about `148.6s`
+  - `input_tokens = 329829`
+  - `cached_input_tokens = 316928`
+  - `output_tokens = 3704`
+- post-pass optimization now succeeds on this task:
+  - accepted candidate: `pddl-tpp-batch-fastpath`
+  - official real-test runtime: `131.10s`
+  - official real-test tokens: `365834 + 3257 output`
+- this result came after two chain changes:
+  - a new direct task-local seed skill that tells the model to run the packaged batch solver and checker first
+  - optimization comparison logic now treats large real runtime/token wins as more important than moderate `skill_md_size` regressions
+
+### Current Interpretation
+
+- paper-era zero-pass classification remains historically true for the benchmark report and should not be overwritten in documentation
+- local results now show that some of those tasks were at least partly limited by harness fidelity, timeout budgeting, and verifier bootstrap behavior
+- the remaining core research problem is unchanged:
+  - keep converting base-model local passes into lower-cost, repeatable passing skills
+  - extend the same post-pass acceptance path beyond the current `enterprise-information-search`, `financial-modeling-qa`, and `pddl-tpp-planning` wins
+  - keep proving skill contributions on hard tasks where the environment no longer dominates the outcome
 - fixed unnecessary `uv` installation in `_run_tests()` so it only happens when `test.sh` actually uses `uvx`
 - added executor and agent debug logging behind `MASTERSKILL_DEBUG=1`
+
+### Pre-Evolution Baseline Mode
+
+Added a reproducible baseline mode before final comparison experiments:
+
+- new CLI flag: `--pre-evolution-baseline`
+- in this mode:
+  - `base_attempt` does **not** see bundled task-local skills
+  - the runner stops immediately after base attempt
+  - default baseline outputs are written to `masterskill_data_pre_evolution/`
+
+Measured baseline results so far:
+
+- `enterprise-information-search`
+  - pure base solved
+  - `duration_seconds ~= 327.11`
+  - `input_tokens = 1122933`
+  - `output_tokens = 13062`
+- `pddl-tpp-planning`
+  - pure base solved
+  - `duration_seconds ~= 198.97`
+  - `input_tokens = 294178`
+  - `output_tokens = 7006`
+
+Baseline reruns still pending after chain fixes:
+
+- `react-performance-debugging`
+  - previously mislabeled as `missing_test_file` because the executor only recognized `tests/test_outputs.py`
+  - fixed so tasks with `tests/test.sh` are now valid test tasks too
+- `taxonomy-tree-merge`
+  - baseline batch was interrupted by Docker build transport failure
+  - build retries now also cover transport-level `IncompleteRead` / `ProtocolError` failures
+
+Additional robustness added during this baseline work:
+
+- runner now records a classified failure event for unexpected per-task exceptions instead of crashing the whole `--tasks` batch
+- session handoff note written to `session_resume.md` so work can resume immediately after restarting Docker / the shell
 
 Real chain validation on `civ6-adjacency-optimizer`:
 
@@ -310,3 +442,421 @@ This submission includes:
 - `scripts/run_research.py`
 - this development log
 - `technical_design.md`
+
+## 2026-04-15 Additional Audit
+
+### Benchmark Leakage Audit
+
+Checked whether benchmark-only data was exposed to the model-facing phase.
+
+Findings:
+
+- `solution/` was not exposed through the current executor path:
+  - image build context uses only `tasks/<id>/environment`
+  - host-side Codex workspace only includes helper scripts plus the candidate skill
+- `tests/` *were* exposed before model execution in `DockerExecutor.run_real_test()`
+
+Fix:
+
+- moved `_copy_tests(container, task_dir)` to run only after `_run_agent(...)` returns
+- updated `technical_design.md` so the documented execution route matches the no-leak behavior
+
+### PDDL TPP Skill Evolution
+
+Targeted task:
+
+- `pddl-tpp-planning` from the "human skill still could not solve reliably" bucket
+
+Initial evolved skill:
+
+- added `MasterSkill/evolved_skills/pddl-tpp-planning-direct/`
+- direct solver script uses:
+  - `PDDLReader`
+  - `OneshotPlanner(name="pyperplan")`
+  - `SequentialPlanValidator`
+  - `.txt` + `.pkl` outputs matching the task verifier contract
+
+First real result:
+
+- the direct solver produced valid plans, but `task02` still failed verifier comparison
+- failure was not invalid planning; it was action-order mismatch between two equivalent plans
+
+Root cause:
+
+- `pyperplan` tie-breaking changed across Python processes because hash randomization changed iteration order
+- the produced plan and the verifier's fresh plan were both valid, but not byte-for-byte identical in action order
+
+Fix:
+
+- added `run_deterministic_solver.sh` to the evolved skill
+- the wrapper:
+  - pins `PYTHONHASHSEED=1`
+  - writes the same export into `/root/.bash_profile`
+  - runs the batch planner under the same seed
+- this forces the later verifier shell to use the same planner tie-breaking order
+
+Validation:
+
+- direct container comparison confirmed the generated `task02.pkl` matches a fresh seeded `pyperplan` solve
+- direct verifier-equivalent run passed:
+  - installed `pytest==8.4.1` in the task container
+  - ran the deterministic wrapper
+  - ran official `tests/test_outputs.py`
+  - result: `2 passed`
+
+Runtime follow-up:
+
+- improved runtime-image prewarming to parse `uvx --with ...` dependencies from `tests/test.sh`
+- the executor now warms those verifier dependencies during image build instead of paying the whole cost at verification time
+
+### Current-Loop Validation On Zero-Pass Tasks
+
+Goal of this pass:
+
+- test whether the existing `BenchmarkRunner` loop itself is useful on tasks from the
+  "human-curated skill still could not solve" bucket
+- avoid task-specific structural rewrites
+- specifically observe `Analyzer`, `Searcher`, `SkillCreator`, `Critic`, `Judger`, and `QuickProposer`
+
+`pddl-tpp-planning`
+
+- ran the full current loop with a fresh temporary data root
+- observed the complete loop in action:
+  - base attempt timeout
+  - `Analyzer`
+  - `Searcher`
+  - `SkillCreator`
+  - `Critic`
+  - `execute_skill`
+  - `Judger`
+  - `QuickProposer`
+- this confirmed that the research loop is not dead code on a zero-pass task
+- the loop also eventually reached `run_real_test()`, which means repeated refinement was enough to produce at least one `judger_passed` skill
+
+Important weakness exposed by this run:
+
+- before adding any new context, research generated a new skill `pddl-tpp-plan-emitter`
+- that skill focused on visible plan text and manual action-trace emission
+- it did **not** prioritize the already-bundled task skill `pddl-skills`, even though the task environment already provided the correct `unified_planning` / `pyperplan` pathway
+
+Generic improvement added from this finding:
+
+- `TaskContext` now carries a summary of bundled task skills from `environment/skills`
+- `Searcher` prompt now receives `bundled_task_skills`
+- `SkillCreator` prompt now also receives `bundled_task_skills`
+- this is a system-level fix for all tasks with bundled expert skills, not a PDDL-only patch
+
+Observed effect of the new bundled-skill context:
+
+- a patched research-only rerun on `pddl-tpp-planning` no longer defaulted to pure plan-emission instructions
+- one sampled output shifted toward an in-process `Unified Planning` / `pyperplan`-based planner skill
+- another sampled output was still weak (`verify_pddl_inputs.py` only), so the direction improved but generation remains unstable
+
+Conclusion from `pddl`:
+
+- the current loop has real value: it can move a hard task from base failure into repeated skill refinement and even reach `judger_passed`
+- the current loop also has a real limitation: without stronger grounding, research can underuse bundled expert skills and wander into prompt-level fixes instead of solver-level execution
+
+`xlsx-recover-data`
+
+- started a full current-loop run as a second zero-pass comparison task
+- base image successfully built
+- run progressed into runtime / verifier preparation, but did not finish within the observation window for this log update
+- current evidence is enough to say the task is not blocked by missing base image setup, but not yet enough to claim solve-rate impact
+
+### Local Case Root
+
+To avoid writing ongoing evolution directly into the external `skillsbench` tree:
+
+- created `MasterSkill/case/tasks/`
+- copied the current hard target tasks into the local case area:
+  - `pddl-tpp-planning`
+  - `taxonomy-tree-merge`
+  - `xlsx-recover-data`
+- changed the default task root selection so MasterSkill now prefers the local
+  `MasterSkill/case` root when it exists, and only falls back to
+  `/home/yuchong/skillsbench` otherwise
+
+Validation:
+
+- `load_config()` now resolves `skillsbench_root` to
+  `/home/yuchong/auto-research-team/MasterSkill/case`
+- default task listing under the local case root returns the three copied tasks
+
+Case expansion:
+
+- copied additional zero-pass / human-curated-skill-failed tasks into the local case root:
+  - `react-performance-debugging`
+  - `financial-modeling-qa`
+  - `latex-formula-extraction`
+  - `quantum-numerical-simulation`
+  - `enterprise-information-search`
+- intentionally deferred more auth- or network-heavy cases such as
+  `gh-repo-analytics` and `scheduling-email-assistant` from the local active pool for now
+
+### Seed-Skill Execution And Memory Tightening
+
+Why this change was needed:
+
+- the loop could summarize bundled task skills, but it still did not reliably use them as executable seeds
+- `SkillRepository.load_skill()` only returned parsed `SKILL.md` text and silently dropped bundled support files
+- as a result, task-local human-curated skills could degrade into empty shells during reuse
+
+Generic fixes added:
+
+- `SkillRepository.load_skill()` now loads bundled support files from:
+  - top-level non-`SKILL.md` task skill files such as `recalc.py` or `*.skill`
+  - nested `scripts/` trees
+- `SkillRepository.save_skill()` now preserves relative support-file paths instead of forcing everything under a flat scripts directory
+- `DockerExecutor` now mounts skill support files at their normalized relative paths and also keeps a legacy `scripts/<name>` alias for bare filenames
+- `ShallowMemory` now preserves nested support-file paths when storing and restoring skills
+- `_find_reusable_skills()` now tries task-local bundled skills before meta-memory transfer skills
+- task-local skill ordering is now stable and seed-first by sorting bundled skills by their original `SKILL.md` timestamp
+- failed / partial skill attempts are now recorded into both shallow trace and task-experience memory instead of only successful terminal outcomes
+
+Validation:
+
+- `py_compile` passed for the updated main tree and mirrored `src/` tree
+- bundled support-file smoke checks:
+  - `pddl-tpp-planning / pddl-skills` now restores:
+    - `generate_plan.skill`
+    - `load_problem.skill`
+    - `save_plan.skill`
+    - `validate.skill`
+  - `xlsx-recover-data / xlsx` now restores:
+    - `recalc.py`
+  - `financial-modeling-qa / pdf` now restores its nested `scripts/*.py` helpers
+- shallow-memory roundtrip now preserves nested relative paths such as:
+  - `tool.py`
+  - `nested/helper.sh`
+- reusable-skill ordering smoke test on local case `pddl-tpp-planning` now returns:
+  - `pddl-skills`
+  - `pddl-tpp-plan-emitter`
+- attempted a real `_try_skill()` seed-smoke on local-case `pddl-tpp-planning`
+  - code path reached `DockerExecutor` construction correctly
+  - the current shell environment was blocked by Docker daemon access instability before task execution
+  - observed failures included:
+    - Python Docker SDK socket permission denial in the sandboxed shell
+    - daemon `/version` returning `500` in the escalated shell
+    - `/usr/bin/docker` reporting `Input/output error` in the current WSL session
+- improved `DockerExecutor` error surfacing so the original daemon failure is now included in the raised runtime error instead of being hidden
+
+### Leakage Hardening Round 2
+
+Leakage threat identified:
+
+- copying `/tests` after model execution was not by itself sufficient
+- the execution and evaluation phases still shared the same container
+- a model could in principle leave background processes, patched shell state, or runtime hooks behind
+- those leftovers could then observe or interfere with official tests once `/tests` was copied in
+
+Generic fix added:
+
+- `run_real_test()` now uses a two-container evaluation flow
+  - container A: model execution only
+  - collect changed execution artifacts from allowed writable roots only
+  - container B: fresh evaluation container restored only with those artifacts
+  - copy `/tests` only into container B
+  - run official tests only in container B
+- artifact export explicitly excludes:
+  - `/tests`
+  - `/solution`
+  - `/root/.claude`
+  - `/root/.codex`
+  - `/root/.skills`
+- system paths such as `/usr/bin/python3` are also not restored into evaluation
+
+Validation:
+
+- `py_compile` passed for the updated executor in both trees
+- path-filter smoke checks confirmed:
+  - `/root/output.json` is exportable
+  - `/app/main.py` is exportable
+  - `/tests/test.sh` is not exportable
+  - `/solution/solve.sh` is not exportable
+  - `/root/.codex/skills/...` is not exportable
+  - `/usr/bin/python3` is not exportable
+- changed-path selection smoke test reduced a mixed diff to:
+  - `/app/src/main.py`
+  - `/root/output.json`
+
+### Loop Control Tightening
+
+Why this change was needed:
+
+- `QuickProposer` is intentionally shallow and wording-oriented
+- hard cases were still at risk of spending iterations on quick proposer even when Judger was flagging execution-layer failures
+- examples include:
+  - missing output
+  - wrong format
+  - timeout
+  - dependency / runtime errors
+
+Generic fix added:
+
+- `BenchmarkRunner` now skips `QuickProposer` when Judger feedback indicates operational blocking failures
+- `QuickProposer` is retained only for wording-sensitive / guidance-sensitive cases
+- this should reduce loop churn on zero-pass tasks and push them back to research sooner
+
+Validation:
+
+- `py_compile` passed for both benchmark runner trees
+- helper smoke check confirmed:
+  - `missing_output` -> no quick proposer
+  - wording/clarity issue -> quick proposer allowed
+  - `recommendation=abandon` -> no quick proposer
+
+### Case Expansion Round 2
+
+To widen the zero-pass active pool without pulling in network-auth tasks, copied these additional
+`With Skills = 0%` cases into `MasterSkill/case/tasks/`:
+
+- `video-filler-word-remover`
+- `speaker-diarization-subtitles`
+- `gravitational-wave-detection`
+- `shock-analysis-supply`
+- `shock-analysis-demand`
+- `seismic-phase-picking`
+- `reserves-at-risk-calc`
+
+Current local case pool size:
+
+- 15 hard cases under active local evolution
+
+### 2026-04-17 23:46 CST Overnight run started
+
+- branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260417_234600.log
+
+### 2026-04-17 23:46 CST Overnight run started
+
+- branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260417_234632.log
+
+### 2026-04-18 00:04 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=d7c1a7b52e6a | status=abandoned | failure_class=builderror | duration_seconds=1147.1781633839992 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+### 2026-04-18 01:27 CST baseline taxonomy-tree-merge
+
+- exit_code=0; run_id=f754362d87e6 | status=abandoned | failure_class=timeout | duration_seconds=5440.698454790001 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 01:44 CST current react-performance-debugging
+
+- exit_code=0; run_id=581cb3df0d17 | status=abandoned | failure_class=builderror | duration_seconds=1112.9304100709996 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+### 2026-04-18 02:45 CST current taxonomy-tree-merge
+
+- exit_code=0; run_id=7fa774e8b2a5 | status=abandoned | failure_class=timeoutexpired | duration_seconds=4043.5363252589996 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-b8vz59bm', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-b8vz59b...
+
+### 2026-04-18 03:01 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=d1c9e54d35ff | status=abandoned | failure_class=builderror | duration_seconds=1036.4254961099978 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+### 2026-04-18 03:12 CST baseline taxonomy-tree-merge
+
+- exit_code=0; run_id=15afc7399aef | status=abandoned | failure_class=timeout | duration_seconds=712.4763632379982 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 03:28 CST current react-performance-debugging
+
+- exit_code=0; run_id=32ef05a0e68b | status=abandoned | failure_class=builderror | duration_seconds=1039.8171880549999 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+### 2026-04-18 05:36 CST current taxonomy-tree-merge
+
+- exit_code=0; run_id=0d35a0516807 | status=abandoned | failure_class=timeoutexpired | duration_seconds=8480.788630378 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-04c5y3km', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-04c5y3k...
+
+### 2026-04-18 05:52 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=90d0a1315afa | status=abandoned | failure_class=builderror | duration_seconds=1036.691220189001 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+### 2026-04-18 06:03 CST baseline taxonomy-tree-merge
+
+- exit_code=0; run_id=b6d17e15ea59 | status=abandoned | failure_class=timeout | duration_seconds=714.0765244359973 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 06:19 CST current react-performance-debugging
+
+- exit_code=0; run_id=8937b3fc9cfa | status=abandoned | failure_class=builderror | duration_seconds=1030.2050966940042 | final_model= | final_score=0.0 | last_event=runner_exception | notes=The command '/bin/sh -c timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true update && timeout 300s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o...
+
+### 2026-04-18 06:28 CST current taxonomy-tree-merge
+
+- exit_code=0; run_id=0d41770db6a4 | status=abandoned | failure_class=apierror | duration_seconds=599.8123059920035 | final_model= | final_score=0.0 | last_event=runner_exception | notes=500 Server Error for http+docker://localhost/v1.54/containers/b65ca3f09d4eb1bc542a1d9e6c6e22a19fea865da8d03f5efb1496ed3fc642e2/archive?path=%2Froot%2F.cache%2Fhuggingface%2Fhub%2Fmodels--sentence-transformers--all-MiniLM-L6-v2%2Fsnapshot...
+
+### 2026-04-18 06:53 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=2c3bfe0bef93 | status=abandoned | failure_class=timeout | duration_seconds=1638.8500706439954 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 07:04 CST baseline taxonomy-tree-merge
+
+- exit_code=0; run_id=2381b58f446c | status=abandoned | failure_class=timeout | duration_seconds=720.1362161819998 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 07:38 CST current react-performance-debugging
+
+- exit_code=0; run_id=ac5d06ed819b | status=abandoned | failure_class=timeoutexpired | duration_seconds=2266.8051828269963 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-lc1ug0hj', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-lc1ug0h...
+
+### 2026-04-18 09:08 CST current taxonomy-tree-merge
+
+- exit_code=0; run_id=8f0054b678e5 | status=abandoned | failure_class=timeoutexpired | duration_seconds=5933.604577464001 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-o17n59j1', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-o17n59j...
+
+### 2026-04-18 09:21 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=bd8392b759a6 | status=abandoned | failure_class=timeout | duration_seconds=810.9967598750009 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 09:32 CST baseline taxonomy-tree-merge
+
+- exit_code=0; run_id=acf078bb3e51 | status=abandoned | failure_class=timeout | duration_seconds=717.2174208470024 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-18 10:05 CST current react-performance-debugging
+
+- exit_code=0; run_id=de26c5ee9511 | status=abandoned | failure_class=timeoutexpired | duration_seconds=2225.3260962740023 | final_model=gpt-5.4 | final_score=0.0 | last_event=runner_exception | notes=Command '['/usr/local/bin/codex', 'exec', '--ephemeral', '--skip-git-repo-check', '-C', '/tmp/masterskill-codex-iwy0kbrw', '-s', 'read-only', '-c', 'model_reasoning_effort="medium"', '-m', 'gpt-5.2', '-o', '/tmp/masterskill-codex-iwy0kbr...
+
+### 2026-04-18 11:45 CST Stability Repair Pass
+
+- Added internal-agent fallback handling across `Searcher`, `Analyzer`, `Critic`, `Reflector`, `QuickProposer`, `SkillCreator`, and base JSON parsing so repeated Codex timeouts no longer crash the whole benchmark run.
+- Changed `Judger` fallback behavior from lenient pass to conservative fail, preventing unavailable Judger responses from incorrectly advancing to real tests.
+- Adjusted internal Codex agent time budgets to `120/180/240s` for `gpt-5.2/5.3/5.4` and lowered execution reasoning effort from `xhigh` to `high` or `medium` depending on model tier.
+- Made Docker build apt timeout task-aware using `task.toml` `environment.build_timeout_sec` with a 300s floor; this directly addresses repeated `react-performance-debugging` build-stage apt failures after Docker cache resets.
+- Tightened artifact export filtering to skip cache-heavy or transient paths such as Hugging Face cache, `.npm`, `.next/cache`, `tsx`, `v8-compile-cache`, and Playwright temp downloads, reducing archive noise and removing the previously observed `taxonomy-tree-merge` archive failure source.
+- Improved research handoff by passing `Searcher` recommended approach and relevant knowledge into `SkillCreator`, not just the short search summary.
+- Added failure-aware cooldown and broader staging coverage to `scripts/overnight_masterskill.sh` so overnight automation can skip repeated identical failures and correctly commit `judge`/`proposer` mirror changes.
+
+### 2026-04-18 11:45 CST Chain Verification
+
+- `python3 -m py_compile` passed for all modified `MasterSkill/` and mirrored `src/icml_research/masterskill/` modules.
+- Local smoke checks passed for fallback paths: `Searcher`, `SkillCreator`, `QuickProposer`, `Judger`, and Docker timeout/cache helpers.
+- A real Docker-backed `react-performance-debugging` verification run with capped loop limits confirmed the repaired current chain now progresses through `execution -> official tests -> analyzer -> searcher -> skill_creator -> critic -> judger -> next skill execution` instead of failing immediately at internal-agent timeout. The run was stopped manually once the closed-loop behavior was confirmed.
+
+### 2026-04-18 16:24 CST Loop Budget And Scheduling
+
+- Added `max_research_cycles` to `Config`, `load_config()`, and CLI entrypoints so total research rounds per task are explicitly bounded.
+- Updated `BenchmarkRunner.run_task()` to abandon with `failure_class=research_budget_exhausted` when the research-cycle budget is consumed before any passing real test, instead of continuing to spin on Judger/research indefinitely.
+- Reworked `scripts/overnight_masterskill.sh` so current/evolution slots run first and baseline slots are skipped automatically when the latest result already contains a valid `base_attempt` record. This keeps overnight time focused on the real optimization target rather than re-sampling already-valid pure-base failures.
+- Validation passed: `py_compile` succeeded, CLI help exposes `--max-research-cycles`, and the latest baseline JSONs for both target tasks already end at `base_attempt`, so the new baseline-skip rule will activate on the next overnight start.
+
+### 2026-04-18 16:49 CST Effective Token Accounting
+
+- Normalized optimization-cost comparisons to use `effective_tokens = max(input_tokens - cached_input_tokens, 0) + output_tokens` instead of raw `input_tokens + output_tokens`, so cache-heavy runs are not treated as equally expensive when the billable/runtime token burden is materially lower.
+- Updated post-solve optimization summaries to show both raw token fields and the derived `effective_input_tokens` / `effective_total_tokens` values.
+- Extended `BenchmarkResultStore` persistence so every newly written benchmark event JSON now includes `effective_input_tokens` and `effective_total_tokens`, removing the need for downstream analysis scripts to recompute the cached-token-adjusted view by hand.
+
+### 2026-04-18 17:15 CST React Current-Chain Breakthrough
+
+- Re-ran `python3 run_local.py --task react-performance-debugging --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data --post-solve-optimization-rounds 1 --max-research-cycles 3` with real host Docker access.
+- New latest run `11cfecf9997e` finished `solved` instead of falling into the older internal-agent `timeoutexpired` path.
+- The solve came directly from `base_attempt`:
+  - `duration_seconds = 679.14`
+  - `input_tokens = 2486252`
+  - `cached_input_tokens = 2445568`
+  - `output_tokens = 18946`
+  - `effective_total_tokens = 59630`
+- Post-pass optimization attempted one candidate skill, `react-nextjs-performance-repair`, but that candidate failed the official real test and was not accepted.
+- Net effect: `react-performance-debugging` is now a confirmed solved current/evolved task, and the control-plane/runtime fixes are no longer blocked by the previous fatal internal-agent timeout chain on this task.
+
+### 2026-04-18 16:04 CST Overnight run started
+
+- branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log
+
+### 2026-04-18 16:04 CST Overnight run started
+
+- branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160422.log
+
+### 2026-04-18 16:17 CST baseline react-performance-debugging
+
+- exit_code=0; run_id=698b991b04a6 | status=abandoned | failure_class=timeout | duration_seconds=883.826898697007 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously

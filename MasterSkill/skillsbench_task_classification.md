@@ -2,6 +2,35 @@
 
 来源：`SkillsBench.pdf` 的逐任务热力图结果，主要使用 Figure 11（with curated Skills）和 Figure 12（without Skills），对应 PDF 第 21-22 页；任务名顺序来自同页图中行标签。
 
+## 本地复现说明（2026-04-17）
+
+这份文档仍然是在记录**论文里的历史 benchmark 结果**，不是当前本地 harness 的最新通过情况。
+
+需要特别区分两件事：
+
+- 这里的 `With Skills = 0%` 表示论文评测设置下的历史结论
+- 它**不自动等于**“今天在修复后的本地执行链路里绝对跑不过”
+
+截至 2026-04-17，本地 `MasterSkill` 已经出现两个重要反例：
+
+- `enterprise-information-search`
+  - 论文分类仍然是 `With Skills = 0%`
+  - 但在当前本地 harness 下，official real test 已可通过
+  - 当前通过主要体现的是执行链路 fidelity / timeout / verifier bootstrap 修复，而不是已有 skill 已经被证明确认有效
+- `financial-modeling-qa`
+  - 论文分类仍然是 `With Skills = 0%`
+  - 但在当前本地 harness 下，official real test 已可通过
+  - 并且已经蒸馏出了一个通过 real test 的更紧凑 task-local skill
+- `pddl-tpp-planning`
+  - 论文分类仍然是 `With Skills = 0%`
+  - 但在当前本地 harness 下，official real test 已可通过
+  - 并且已经蒸馏出了通过 real test 的 post-pass skill
+
+因此：
+
+- 这份分类文档继续保留论文语境下的历史标签
+- 当前本地研发要额外看 run records，而不是只看这里的静态分类
+
 ## 我采用的分类规则
 
 论文本身没有给出“完全模型自主可解决 / 不稳定 / 有人类 skill 也解决不了”这三个官方标签，所以这里用一套可复现规则来分：

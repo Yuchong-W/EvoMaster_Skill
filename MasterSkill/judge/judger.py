@@ -126,7 +126,7 @@ blocking rather than letting a potentially wrong result waste a real test."""
                 problem_description=problem_description,
                 instruction=instruction[:2000],  # Limit length
                 skill_description=skill_description[:1000],
-                execution_result=execution_result[:3000],
+                execution_result=self._compact_execution_result(execution_result),
                 test_info=test_info or "No test info available.",
             ) + criteria_section}
         ]
@@ -134,22 +134,47 @@ blocking rather than letting a potentially wrong result waste a real test."""
         try:
             result = self.chat_json(messages, temperature=0.3)
             return JudgerFeedback.from_dict(result)
-        except (json.JSONDecodeError, KeyError) as e:
-            # Fallback: try to parse from text
-            content = self.chat(messages, temperature=0.3)
-            # Try to extract JSON
-            if "```json" in content:
-                start = content.find("```json") + 7
-                end = content.find("```", start)
-                result = json.loads(content[start:end])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            try:
+                content = self.chat(messages, temperature=0.3)
+                result = json.loads(self._extract_json_content(content))
                 return JudgerFeedback.from_dict(result)
-            # Fallback to lenient pass
-            return JudgerFeedback(
-                passed=True,
-                score=0.5,
-                recommendation="proceed_to_real_test",
-                confidence=0.3,
-            )
+            except Exception as inner_exc:
+                return self._fallback_feedback(
+                    f"Judger response could not be parsed: {exc}; secondary parse failed: {inner_exc}"
+                )
+        except Exception as exc:
+            return self._fallback_feedback(str(exc))
+
+    def _compact_execution_result(self, execution_result: str, limit: int = 4200) -> str:
+        """Keep both the opening actions and final artifacts visible to the Judger."""
+        if len(execution_result) <= limit:
+            return execution_result
+
+        head = execution_result[: limit // 2].rstrip()
+        tail = execution_result[-(limit // 2):].lstrip()
+        return f"{head}\n\n...[snip]...\n\n{tail}"
+
+    def _fallback_feedback(self, reason: str) -> JudgerFeedback:
+        """Return a conservative fail when Judger itself is unavailable."""
+        clipped_reason = " ".join(reason.split())
+        if len(clipped_reason) > 240:
+            clipped_reason = clipped_reason[:237] + "..."
+        return JudgerFeedback(
+            passed=False,
+            score=0.0,
+            blocking_issues=[
+                BlockingIssue(
+                    type="judger_unavailable",
+                    description=f"Judger fallback triggered: {clipped_reason}",
+                    suggestion="Keep improving the operational solve path and rerun evaluation.",
+                )
+            ],
+            non_blocking_concerns=[],
+            positive_signals=[],
+            confidence=0.2,
+            recommendation="keep_improving",
+        )
 
     def build_judger_criteria(self, task_id: str, problem_description: str,
                                instruction: str, historical_failures: list[dict]) -> dict:

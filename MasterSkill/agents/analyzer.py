@@ -64,6 +64,22 @@ Return a JSON with:
     def run(self, task_id: str, problem_type: str, attempt_result: str,
             trace_history: list, judger_feedback: Optional[dict] = None) -> dict:
         """Run analysis for a problem."""
+        normalized_problem_type = problem_type if problem_type in {"knowledge_bottleneck", "tool_bottleneck"} else "tool_bottleneck"
+        attempt_excerpt = str(attempt_result or "").strip()[:220] or "Latest attempt failed without a detailed error."
+        fallback = {
+            "root_cause": (
+                "Fallback analysis: treat the latest failure as an operational bottleneck until "
+                "a more specific analyzer signal is available."
+            ),
+            "blocking_issues": [attempt_excerpt],
+            "suggested_directions": [
+                "Target the concrete verifier contract and required output artifacts first.",
+                "Reuse bundled task skills and task-local tools before inventing new tooling.",
+                "Avoid repeating methods that already failed in recent trace history.",
+            ],
+            "is_stubborn": len(trace_history or []) >= 2,
+            "problem_type_refinement": normalized_problem_type,
+        }
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -75,7 +91,7 @@ Return a JSON with:
             )}
         ]
 
-        return self.chat_json(messages)
+        return self.chat_json(messages, fallback=fallback)
 
     def _format_trace(self, trace: list) -> str:
         if not trace:

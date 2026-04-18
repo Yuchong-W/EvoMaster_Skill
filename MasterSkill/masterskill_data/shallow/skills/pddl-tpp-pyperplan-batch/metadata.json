@@ -1,0 +1,8 @@
+{
+  "skill_id": "pddl-tpp-pyperplan-batch",
+  "name": "PDDL TPP Pyperplan Batch Emitter",
+  "status": "draft",
+  "description": "Solve each TPP entry in `problem.json` with `pyperplan` and emit verifier-compatible `plan_output` text plus sibling `.pkl` from the same returned plan object.",
+  "trigger_condition": "Use when a task provides PDDL `domain` and `problem` files plus a required `plan_output`, especially for `pddl-tpp-planning` style batches.",
+  "usage": "1. Read `problem.json` and iterate every entry exactly as listed; use `entry[\"domain\"]`, `entry[\"problem\"]`, and `entry[\"plan_output\"]` verbatim.\n2. For each entry, load the problem with `PDDLReader` and solve it with `OneshotPlanner(name=\"pyperplan\")`.\n3. Do not hand-write, reorder, or trim the plan. Use the solver's returned plan directly so it matches the verifier's expected action sequence.\n4. Write `plan_output` as UTF-8 text with one `str(action)` per line. Also write `plan_output` with the `.pkl` suffix by pickling the same plan object.\n5. Finalization checklist: reopen the `.txt`, confirm it is non-empty, confirm every line is a single parenthesized action, confirm reopened text lines exactly equal `[str(a) for a in plan.actions]`, reopen the `.pkl`, confirm its action strings exactly match the text file, and confirm every task in `problem.json` produced both artifacts.\n6. If any task has `result.plan is None` or any artifact check fails, stop and fix that task instead of leaving partial outputs."
+}

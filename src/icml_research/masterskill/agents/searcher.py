@@ -25,6 +25,9 @@ You have access to all memory layers, including:
 
 IMPORTANT: Check memory before searching to AVOID duplicating previous work.
 If a method is already known to be ineffective, do NOT search for the same approach again.
+If bundled task skills already exist in the environment, treat them as first-class
+solution candidates and prioritize reusing/composing them before inventing a
+disconnected method from scratch.
 
 Output a structured JSON with your search results."""
 
@@ -47,12 +50,16 @@ Known ineffective methods (from memory):
 Known effective methods (from memory):
 {effective_methods}
 
+Bundled task skills already available in the environment:
+{bundled_task_skills}
+
 ## Your Search Task
 
 Search for solutions to this problem. Focus on:
 1. Methods that have worked for similar problems
-2. Novel approaches not yet tried
-3. Domain-specific knowledge or tools
+2. Bundled task skills or task-local tools that can be directly reused or adapted
+3. Novel approaches not yet tried
+4. Domain-specific knowledge or tools
 
 Return a JSON with:
 {{
@@ -65,6 +72,22 @@ Return a JSON with:
     def run(self, problem_description: str, problem_type: str, domain: str,
             problem_modeling: str, memory_context: dict) -> dict:
         """Run search for a problem."""
+        fallback = {
+            "search_summary": (
+                "Fallback search: prioritize bundled task skills and known effective methods "
+                "before inventing a disconnected new approach."
+            ),
+            "new_methods_found": [],
+            "relevant_knowledge": [
+                f"Treat this as a {problem_type} problem in {domain}.",
+                "Avoid repeating methods already marked ineffective or previously tried.",
+                "Use bundled task skills as first-class solve components when available.",
+            ],
+            "recommended_approach": (
+                "Compose bundled task skills with the verifier contract first, then add only "
+                "the smallest missing end-to-end step needed to produce validated artifacts."
+            ),
+        }
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": self.USER_PROMPT.format(
@@ -75,7 +98,8 @@ Return a JSON with:
                 previously_tried=memory_context.get("previously_tried", "None"),
                 ineffective_methods=memory_context.get("ineffective_methods", "None"),
                 effective_methods=memory_context.get("effective_methods", "None"),
+                bundled_task_skills=memory_context.get("bundled_task_skills", "None"),
             )}
         ]
 
-        return self.chat_json(messages)
+        return self.chat_json(messages, fallback=fallback)
