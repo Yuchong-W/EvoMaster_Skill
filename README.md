@@ -31,6 +31,7 @@ The active goal is not ICML paper analysis. The repo now focuses on:
 ## Key Docs
 
 - Roadmap: `MasterSkill/roadmap.md`
+- Phase 1 runbook: `MasterSkill/phase1_runbook.md`
 - Technical design: `MasterSkill/technical_design.md`
 - Project state: `MasterSkill/state.md`
 - Session resume / recovery notes: `MasterSkill/session_resume.md`

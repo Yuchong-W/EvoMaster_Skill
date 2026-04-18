@@ -107,6 +107,11 @@ class BenchmarkRunner:
 
         return results
 
+    def list_all_tasks(self) -> list[str]:
+        """List every task directory under the active task root."""
+        tasks_dir = Path(self.config.skillsbench_root) / "tasks"
+        return sorted(d.name for d in tasks_dir.iterdir() if d.is_dir())
+
     def run_task(self, task_id: str) -> TaskStatus:
         """Run a single task through the feedback loop."""
         started_at = datetime.now(timezone.utc).isoformat()
@@ -482,8 +487,7 @@ class BenchmarkRunner:
     def _list_unsolved_tasks(self) -> list[str]:
         """List tasks that are not yet solved."""
         solved = set(self.task_memory.get_all_solved())
-        tasks_dir = Path(self.config.skillsbench_root) / "tasks"
-        all_tasks = [d.name for d in tasks_dir.iterdir() if d.is_dir()]
+        all_tasks = self.list_all_tasks()
         return [t for t in all_tasks if t not in solved]
 
     def _find_reusable_skills(self, context: TaskContext) -> list[SkillBundle]:

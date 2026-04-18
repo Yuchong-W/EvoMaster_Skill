@@ -18,7 +18,12 @@ def main():
     default_root = default_skillsbench_root()
     parser = argparse.ArgumentParser(description="MasterSkill - Benchmark-Driven Skill Discovery")
     parser.add_argument("--task", type=str, help="Run a single task")
-    parser.add_argument("--benchmark", action="store_true", help="Run full benchmark")
+    parser.add_argument("--benchmark", action="store_true", help="Run full benchmark over unsolved tasks in the active data root")
+    parser.add_argument(
+        "--benchmark-all",
+        action="store_true",
+        help="Run the full benchmark over every task in the task root, ignoring solved-state filtering.",
+    )
     parser.add_argument("--tasks", nargs="+", type=str, help="Run specific tasks")
     parser.add_argument("--skillsbench-root", type=str, default=default_root)
     parser.add_argument("--data-root", type=str, default="")
@@ -35,7 +40,7 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.task and not args.benchmark and not args.tasks:
+    if not args.task and not args.benchmark and not args.benchmark_all and not args.tasks:
         parser.print_help()
         sys.exit(1)
 
@@ -80,10 +85,15 @@ def main():
 
         print(f"\nResults: {results['solved_count']} solved, {results['abandoned_count']} abandoned")
 
-    elif args.benchmark:
+    elif args.benchmark or args.benchmark_all:
         # Run full benchmark
-        print("Running full benchmark...")
-        results = runner.run_benchmark()
+        if args.benchmark_all:
+            print("Running full benchmark over all tasks...")
+            task_ids = runner.list_all_tasks()
+        else:
+            print("Running benchmark over unsolved tasks...")
+            task_ids = None
+        results = runner.run_benchmark(task_ids=task_ids)
         print(f"\nBenchmark complete:")
         print(f"  Total: {results['total']}")
         print(f"  Solved: {results['solved_count']}")

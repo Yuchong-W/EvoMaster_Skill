@@ -889,6 +889,54 @@ Current local case pool size:
   - `react-performance-debugging`: current/evolved and pure baseline now both pass, so future work should compare runtime, effective tokens, and stability instead of treating it as a pure pass/fail gain.
   - `taxonomy-tree-merge`: current/evolved now passes while pure baseline still fails, so this remains the clearest current evidence that the MasterSkill runtime/control-plane changes materially expand task coverage on a hard case.
 
+### 2026-04-18 21:10 CST Phase 1 Runbook Operationalization
+
+- Added `--benchmark-all` to both runtime entrypoints so a frozen full-suite sweep can explicitly run every task under the active task root instead of depending on task-memory solved-state filtering.
+- Added `scripts/summarize_masterskill_results.py` to summarize `benchmark_runs/latest/*.json` into suite-level solved/abandoned counts, failure-class breakdowns, and per-task duration / effective-token views.
+- Added [phase1_runbook.md](/home/yuchong/auto-research-team/MasterSkill/phase1_runbook.md) as the execution guide for calibration runs, frozen Phase 1 sweeps, and release-readiness checks.
+- Added `scripts/run_phase1_skillsbench.sh` so Phase 1 calibration and full-suite sweeps now have a single canonical launcher with fixed data-root names and task-set modes.
+- Added `scripts/compare_masterskill_runs.py` so baseline vs current/evolved comparisons can be generated directly from persisted `benchmark_runs/latest/*.json` outputs after a sweep.
+- Validation passed for:
+  - `python3 run_local.py --help`
+  - `python3 scripts/summarize_masterskill_results.py --help`
+  - `python3 scripts/compare_masterskill_runs.py --help`
+  - `python3 -m py_compile MasterSkill/main.py MasterSkill/runner/benchmark_runner.py src/icml_research/masterskill/main.py src/icml_research/masterskill/runner/benchmark_runner.py scripts/summarize_masterskill_results.py scripts/compare_masterskill_runs.py`
+
+### 2026-04-18 21:20 CST Phase 1 Current Calibration Started
+
+- Launched `scripts/run_phase1_skillsbench.sh current-calibration` against the representative task set:
+  - `enterprise-information-search`
+  - `pddl-tpp-planning`
+  - `react-performance-debugging`
+  - `taxonomy-tree-merge`
+  - `financial-modeling-qa`
+- The run uses fresh data root `/home/yuchong/auto-research-team/MasterSkill/masterskill_data_phase1_calibration_current`.
+- Early signal is positive: the first task (`enterprise-information-search`) reached post-solve optimization in the fresh calibration root instead of failing immediately from a harness/runtime error, so the new Phase 1 launcher and config surface are at least live under real Docker-backed execution.
+
+### 2026-04-18 21:50 CST Phase 1 Calibration Progress Clarification
+
+- `enterprise-information-search` completed successfully in the fresh calibration root as run `4dd60dd2fc93`.
+- The base solve was still direct (`__base_model__`), but the post-pass optimization candidate `enterprise-direct-answer-lean` was accepted with a real efficiency gain:
+  - `effective_total_tokens 125466 -> 62935`
+- The main `current-calibration` batch did continue beyond the first task; after the enterprise task finished, it advanced into `pddl-tpp-planning` post-pass candidate evaluation (`pddl-tpp-batch-solve-verify-fastpath`).
+- A short two-task diagnostic probe was started while the task switch window looked suspicious, but it became redundant once the main calibration batch clearly progressed to the second task, so the probe run was stopped to avoid wasting resources.
+
+### 2026-04-18 22:45 CST Phase 1 Single-Task Calibration Fallback
+
+- Added single-task Phase 1 launcher modes to `scripts/run_phase1_skillsbench.sh`:
+  - `current-task <task_id>`
+  - `baseline-task <task_id>`
+- Updated `phase1_runbook.md` so single-task modes are now the formal fallback when:
+  - a calibration batch appears to stall between task transitions
+  - a long task should be resumed under the same calibration data root
+  - a specific hard task deserves focused debugging without rerunning earlier calibration tasks
+- Used that fallback to continue the Phase 1 current calibration in the same data root for `react-performance-debugging`.
+- During the fresh `react-performance-debugging` calibration run, the chain progressed through:
+  - existing bundled skill evaluation (`react-best-practices`)
+  - additional bundled measurement/debug skill evaluation (`browser-testing`)
+  - transition into research-driven new skill creation after those task-local priors did not produce a passing solve path quickly
+- This is useful Phase 1 evidence even before final task status is written: the runtime is not bailing out early and is exercising the intended `reuse -> research` fallback path on a hard task under the calibration configuration.
+
 ### 2026-04-18 16:04 CST Overnight run started
 
 - branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log
