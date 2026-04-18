@@ -822,3 +822,7 @@ Current local case pool size:
 - `python3 -m py_compile` passed for all modified `MasterSkill/` and mirrored `src/icml_research/masterskill/` modules.
 - Local smoke checks passed for fallback paths: `Searcher`, `SkillCreator`, `QuickProposer`, `Judger`, and Docker timeout/cache helpers.
 - A real Docker-backed `react-performance-debugging` verification run with capped loop limits confirmed the repaired current chain now progresses through `execution -> official tests -> analyzer -> searcher -> skill_creator -> critic -> judger -> next skill execution` instead of failing immediately at internal-agent timeout. The run was stopped manually once the closed-loop behavior was confirmed.
+
+### 2026-04-18 16:04 CST Overnight run started
+
+- branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log

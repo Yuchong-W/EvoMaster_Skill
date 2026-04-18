@@ -210,3 +210,5 @@ find masterskill_data_pre_evolution/benchmark_runs/latest -maxdepth 1 -name '*.j
 - [2026-04-18 11:45 CST] Evolution-loop optimization landed in `scripts/overnight_masterskill.sh`: the runner now stages `proposer`/`judge` mirror paths correctly and applies failure-aware cooldown for repeated identical failure classes instead of blind 4-slot rotation.
 
 - [2026-04-18 11:45 CST] Verification status: `py_compile` and local fallback smoke tests passed. A real Docker-backed `react-performance-debugging` chain check with capped loop limits reached `execution -> official test.sh -> analyzer -> searcher -> skill_creator -> critic -> judger -> next skill execution` without reproducing the previous fatal internal-agent timeout path. The verification run was stopped manually after the closed loop was confirmed.
+
+- [2026-04-18 16:04 CST] Overnight run started on branch `overnight-masterskill-recovery`; log file: `/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log`
