@@ -183,6 +183,7 @@ class BenchmarkRunner:
             run_record.problem_type = context.problem_type.value
 
             judger_research_triggers = 0
+            research_cycles = 0
             current_skill: Optional[SkillBundle] = None
             current_judger_criteria: Optional[dict] = None
             judger_feedback_history: list[dict] = []
@@ -227,6 +228,7 @@ class BenchmarkRunner:
                 run_record.failure_class = "research_failed"
                 return TaskStatus.ABANDONED
 
+            research_cycles = 1
             current_skill = research_output.skill
             skill_ids_tried.add(current_skill.skill_id)
 
@@ -336,8 +338,27 @@ class BenchmarkRunner:
                             )
                         judger_research_triggers = 0
 
+                    if research_cycles >= self.config.max_research_cycles:
+                        note = (
+                            "research cycle budget exhausted before any passing real test; "
+                            f"research_cycles={research_cycles}, "
+                            f"max_research_cycles={self.config.max_research_cycles}"
+                        )
+                        run_record.failure_class = "research_budget_exhausted"
+                        self._append_run_event(
+                            run_record,
+                            stage="research_budget_exhausted",
+                            passed=False,
+                            skill_id=current_skill.skill_id,
+                            notes=note,
+                        )
+                        if context:
+                            self._on_task_abandoned(task_id, context)
+                        return TaskStatus.ABANDONED
+
                     research_output = self._research_new_skill(context)
                     if research_output.skill:
+                        research_cycles += 1
                         current_skill = research_output.skill
                         skill_ids_tried.add(current_skill.skill_id)
 

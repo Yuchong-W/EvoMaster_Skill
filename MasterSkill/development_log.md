@@ -823,6 +823,13 @@ Current local case pool size:
 - Local smoke checks passed for fallback paths: `Searcher`, `SkillCreator`, `QuickProposer`, `Judger`, and Docker timeout/cache helpers.
 - A real Docker-backed `react-performance-debugging` verification run with capped loop limits confirmed the repaired current chain now progresses through `execution -> official tests -> analyzer -> searcher -> skill_creator -> critic -> judger -> next skill execution` instead of failing immediately at internal-agent timeout. The run was stopped manually once the closed-loop behavior was confirmed.
 
+### 2026-04-18 16:24 CST Loop Budget And Scheduling
+
+- Added `max_research_cycles` to `Config`, `load_config()`, and CLI entrypoints so total research rounds per task are explicitly bounded.
+- Updated `BenchmarkRunner.run_task()` to abandon with `failure_class=research_budget_exhausted` when the research-cycle budget is consumed before any passing real test, instead of continuing to spin on Judger/research indefinitely.
+- Reworked `scripts/overnight_masterskill.sh` so current/evolution slots run first and baseline slots are skipped automatically when the latest result already contains a valid `base_attempt` record. This keeps overnight time focused on the real optimization target rather than re-sampling already-valid pure-base failures.
+- Validation passed: `py_compile` succeeded, CLI help exposes `--max-research-cycles`, and the latest baseline JSONs for both target tasks already end at `base_attempt`, so the new baseline-skip rule will activate on the next overnight start.
+
 ### 2026-04-18 16:04 CST Overnight run started
 
 - branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log

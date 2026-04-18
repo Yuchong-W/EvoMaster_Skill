@@ -144,6 +144,47 @@ print(str(value))
 PY
 }
 
+latest_event_stage() {
+  local json_path="$1"
+  python3 - "$json_path" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.exists():
+    print("")
+    raise SystemExit(0)
+
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+events = data.get("events") or []
+event = events[-1] if events else {}
+print(str(event.get("stage", "") or ""))
+PY
+}
+
+should_skip_baseline_slot() {
+  local label="$1"
+  local json_path="$2"
+
+  if [[ "$label" != baseline* ]]; then
+    return 1
+  fi
+
+  if [ "${MASTERSKILL_INCLUDE_BASELINES:-0}" = "1" ]; then
+    return 1
+  fi
+
+  local last_stage
+  last_stage="$(latest_event_stage "$json_path")"
+  [ "$last_stage" = "base_attempt" ]
+}
+
 run_and_record() {
   local label="$1"
   local command="$2"
@@ -177,24 +218,24 @@ BASELINE_DATA="$ROOT/MasterSkill/masterskill_data_pre_evolution"
 CURRENT_DATA="$ROOT/MasterSkill/masterskill_data"
 
 declare -a LABELS=(
-  "baseline react-performance-debugging"
-  "baseline taxonomy-tree-merge"
   "current react-performance-debugging"
   "current taxonomy-tree-merge"
+  "baseline react-performance-debugging"
+  "baseline taxonomy-tree-merge"
 )
 
 declare -a COMMANDS=(
+  "python3 run_local.py --task react-performance-debugging --data-root $CURRENT_DATA --post-solve-optimization-rounds 1 --max-research-cycles 3"
+  "python3 run_local.py --task taxonomy-tree-merge --data-root $CURRENT_DATA --post-solve-optimization-rounds 1 --max-research-cycles 3"
   "python3 run_local.py --task react-performance-debugging --pre-evolution-baseline --data-root $BASELINE_DATA"
   "python3 run_local.py --task taxonomy-tree-merge --pre-evolution-baseline --data-root $BASELINE_DATA"
-  "python3 run_local.py --task react-performance-debugging --data-root $CURRENT_DATA --post-solve-optimization-rounds 1"
-  "python3 run_local.py --task taxonomy-tree-merge --data-root $CURRENT_DATA --post-solve-optimization-rounds 1"
 )
 
 declare -a JSONS=(
-  "$BASELINE_DATA/benchmark_runs/latest/react-performance-debugging.json"
-  "$BASELINE_DATA/benchmark_runs/latest/taxonomy-tree-merge.json"
   "$CURRENT_DATA/benchmark_runs/latest/react-performance-debugging.json"
   "$CURRENT_DATA/benchmark_runs/latest/taxonomy-tree-merge.json"
+  "$BASELINE_DATA/benchmark_runs/latest/react-performance-debugging.json"
+  "$BASELINE_DATA/benchmark_runs/latest/taxonomy-tree-merge.json"
 )
 
 BACKOFF_REPEAT_THRESHOLD="${MASTERSKILL_BACKOFF_REPEAT_THRESHOLD:-2}"
@@ -240,6 +281,12 @@ record_slot_result() {
 index=0
 while within_deadline; do
   slot=$(( index % ${#LABELS[@]} ))
+  if should_skip_baseline_slot "${LABELS[$slot]}" "${JSONS[$slot]}"; then
+    log "skipping: ${LABELS[$slot]} because a valid base_attempt record already exists"
+    append_resume "${LABELS[$slot]} -> skipped because latest record already contains a valid base_attempt result"
+    index=$(( index + 1 ))
+    continue
+  fi
   if [ "${COOLDOWN_UNTIL[$slot]:-0}" -gt "$index" ]; then
     log "skipping: ${LABELS[$slot]} due to cooldown until slot ${COOLDOWN_UNTIL[$slot]}"
     append_resume "${LABELS[$slot]} -> skipped due to repeated failure cooldown (current_slot=$index, resume_at=${COOLDOWN_UNTIL[$slot]})"

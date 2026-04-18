@@ -45,6 +45,10 @@ def load_config(
             "max_research_triggers_same_judger",
             Config.max_research_triggers_same_judger,
         ),
+        max_research_cycles=kwargs.get(
+            "max_research_cycles",
+            Config.max_research_cycles,
+        ),
         initial_attempt_timeout_seconds=kwargs.get(
             "initial_attempt_timeout_seconds",
             Config.initial_attempt_timeout_seconds,

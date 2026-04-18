@@ -25,6 +25,7 @@ def main():
     parser.add_argument("--max-real-test-failures", type=int, default=4)
     parser.add_argument("--max-quick-proposer", type=int, default=3)
     parser.add_argument("--max-research-trigger", type=int, default=2)
+    parser.add_argument("--max-research-cycles", type=int, default=3)
     parser.add_argument("--post-solve-optimization-rounds", type=int, default=0)
     parser.add_argument(
         "--pre-evolution-baseline",
@@ -49,6 +50,7 @@ def main():
         max_real_test_failures=args.max_real_test_failures,
         max_quick_proposer_iterations=args.max_quick_proposer,
         max_research_triggers_same_judger=args.max_research_trigger,
+        max_research_cycles=args.max_research_cycles,
         post_solve_optimization_rounds=0 if args.pre_evolution_baseline else args.post_solve_optimization_rounds,
         base_attempt_include_task_skills=not args.pre_evolution_baseline,
         stop_after_base_attempt=args.pre_evolution_baseline,

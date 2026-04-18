@@ -232,6 +232,7 @@ class Config:
     max_real_test_failures: int = 4
     max_quick_proposer_iterations: int = 3
     max_research_triggers_same_judger: int = 2
+    max_research_cycles: int = 3
     max_task_experience_entries: int = 2
     initial_attempt_timeout_seconds: int = 240
     skill_execution_timeout_seconds: int = 420

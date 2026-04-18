@@ -211,6 +211,10 @@ find masterskill_data_pre_evolution/benchmark_runs/latest -maxdepth 1 -name '*.j
 
 - [2026-04-18 11:45 CST] Verification status: `py_compile` and local fallback smoke tests passed. A real Docker-backed `react-performance-debugging` chain check with capped loop limits reached `execution -> official test.sh -> analyzer -> searcher -> skill_creator -> critic -> judger -> next skill execution` without reproducing the previous fatal internal-agent timeout path. The verification run was stopped manually after the closed loop was confirmed.
 
+- [2026-04-18 16:24 CST] Next-step control-plane patch landed: added `max_research_cycles` to cap total research loops per task, so `run_task()` no longer depends only on `real_test_failures` and cannot spin indefinitely when Judger keeps blocking without ever reaching real test.
+
+- [2026-04-18 16:24 CST] Night runner policy was tightened to focus on current/evolution work: slot order is now `current react -> current taxonomy -> baseline react -> baseline taxonomy`, and baseline slots are skipped by default when the latest JSON already ends at `base_attempt` (set `MASTERSKILL_INCLUDE_BASELINES=1` to force baseline reruns).
+
 - [2026-04-18 16:04 CST] Overnight run started on branch `overnight-masterskill-recovery`; log file: `/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log`
 
 - [2026-04-18 16:04 CST] Overnight run started on branch `overnight-masterskill-recovery`; log file: `/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160422.log`
