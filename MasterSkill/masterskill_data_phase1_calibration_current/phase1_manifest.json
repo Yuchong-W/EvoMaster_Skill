@@ -1,8 +1,8 @@
 {
-  "mode": "current-calibration",
-  "timestamp": "20260418_231500",
+  "mode": "current-task",
+  "timestamp": "20260418_231148",
   "branch": "main",
-  "commit_sha": "80642b0+dirty-phase1-infra",
+  "commit_sha": "7fe6f4b6a98a1bd4221daf4083d5ed8b531deab3",
   "task_root": "/home/yuchong/auto-research-team/MasterSkill/case",
   "data_root": "/home/yuchong/auto-research-team/MasterSkill/masterskill_data_phase1_calibration_current"
 }

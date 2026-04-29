@@ -8,6 +8,7 @@ Usage:
 """
 
 AGENT_CONFIG = {
+    # All SkillsBench experiments are currently standardized on gpt-5.2.
     # Research Team Agents
     "searcher": {
         "model": "gpt-5.2",
@@ -28,25 +29,25 @@ AGENT_CONFIG = {
         "description": "Quality control - prevents grinding",
     },
     "skill_creator": {
-        "model": "gpt-5.4",
+        "model": "gpt-5.2",
         "temperature": 0.7,
         "max_tokens": 4096,
         "description": "Skill engineering - creates skill bundles",
     },
     "quick_proposer": {
-        "model": "gpt-5.1",
+        "model": "gpt-5.2",
         "temperature": 0.5,
         "max_tokens": 2048,
         "description": "Surface fixes - wording and details only",
     },
     "judge": {
-        "model": "gpt-5.3-codex",
+        "model": "gpt-5.2",
         "temperature": 0.3,
         "max_tokens": 4096,
         "description": "Evaluation - assesses skill execution results",
     },
     "reflector": {
-        "model": "gpt-5.3-codex",
+        "model": "gpt-5.2",
         "temperature": 0.7,
         "max_tokens": 4096,
         "description": "Meta-reasoning - reflects on Judger strictness",
@@ -54,7 +55,7 @@ AGENT_CONFIG = {
 
     # Execution Agent (Codex CLI using the current ChatGPT login)
     "execution": {
-        "model": "auto",
+        "model": "gpt-5.2",
         "cli_path": "/usr/local/bin/codex",
         "description": "Executes tasks from the host via Codex, controlling the Docker task container",
         "timeout": 600,

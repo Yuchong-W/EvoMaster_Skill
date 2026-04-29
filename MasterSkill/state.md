@@ -1,5 +1,161 @@
 # MasterSkill 项目状态文档
 
+## 2026-04-29 活跃方向更新
+
+- 当前近程主目标已经从“先完成完整 Phase 1 OSS 发布”切换为：
+  - 在 `2026-05-13` 前产出一版范围收缩但证据可信的 `arXiv` 论文
+- 活跃计划文档现在是：
+  - [paper_plan_20260513.md](/home/yuchong/auto-research-team/MasterSkill/paper_plan_20260513.md)
+- 仍然保留但不再作为当前主驱动的文档：
+  - `phase1_runbook.md`
+  - `pipeline_todo.md`
+  - `release_checklist.md`
+  - `session_resume.md`
+
+### 当前策略
+
+- 所有 `SkillsBench` 实验当前统一使用 `gpt-5.2`
+- 现在把 full-suite baseline/current comparison 作为近期论文的硬门槛
+- case study 负责解释链路为何有价值，而不是替代全量结果
+- 当前首选 case-study 任务集：
+  - primary: `taxonomy-tree-merge`
+  - supporting: `enterprise-information-search`
+  - supporting: `financial-modeling-qa` 或 `pddl-tpp-planning`
+
+### 当前最重要的判断
+
+- `phase1_current` 还不完整，所以当前最紧迫任务仍然是补齐可信的全量 current 结果
+- 但 repo 已经具备“全量结果 + 少量解释性 case study”的论文基础材料
+- `2026-04-29` 的实际 blocker 已明确：
+  - 当前 WSL 环境缺少 Docker 可达性
+  - `docker version` 不可用
+  - `/var/run/docker.sock` 不存在
+  - 因此 `run_local.py` 在 `docker.from_env()` 初始化阶段即失败
+- 近期工作重点应转向：
+  - 已完成补齐全量 current sweep 证据
+  - 证据归因
+  - case-study 提炼
+  - 论文写作
+  - 少量 paper-critical rerun
+
+### 2026-04-29 收盘状态
+
+- `phase1_pre_evolution`: `15 / 15` latest coverage
+- `phase1_current`: `15 / 15` latest coverage
+- frozen compare 当前结论：
+  - baseline solved: `3 / 15`
+  - current solved: `5 / 15`
+  - solve gains: `taxonomy-tree-merge`, `xlsx-recover-data`
+- 当前最稳的论文结论不是“全局效率提升”，而是：
+  - 有限但真实的 coverage gain
+  - 可追踪的链路价值
+  - 明确的主 case study
+
+### 2026-04-30 启动入口
+
+- 今日任务单：
+  - [paper_tasks_20260430.md](/home/yuchong/auto-research-team/MasterSkill/paper_tasks_20260430.md)
+- 今日主表草稿：
+  - [paper_results_table_20260430.md](/home/yuchong/auto-research-team/data/papers/paper_results_table_20260430.md)
+- 当前论文大纲：
+  - [paper_outline_20260513.md](/home/yuchong/auto-research-team/data/papers/paper_outline_20260513.md)
+- 当前 attribution 草稿：
+  - [paper_attribution_table_20260430.md](/home/yuchong/auto-research-team/data/papers/paper_attribution_table_20260430.md)
+- taxonomy case-study source map：
+  - [taxonomy_case_study_sources_20260430.md](/home/yuchong/auto-research-team/data/papers/taxonomy_case_study_sources_20260430.md)
+
+### 2026-04-30 收尾状态
+
+- paper-facing `baseline/current latest` solved snapshots 已统一为 `gpt-5.2`
+- refreshed frozen compare 当前结论：
+  - baseline solved: `3 / 15`
+  - current solved: `6 / 15`
+  - solve gains: `seismic-phase-picking`, `taxonomy-tree-merge`,
+    `xlsx-recover-data`
+  - solve losses: `0`
+- 当前最稳的论文结论仍然是：
+  - suite-level coverage gain
+  - `taxonomy-tree-merge` 作为最强主 case
+  - `enterprise-information-search` / `financial-modeling-qa` /
+    `pddl-tpp-planning` 作为 supporting optimization evidence
+  - `seismic-phase-picking` 更适合放在全量结果里，而不是主机制 case
+
+### 2026-05-01 启动入口
+
+- 今日任务单：
+  - [paper_tasks_20260501.md](/home/yuchong/auto-research-team/MasterSkill/paper_tasks_20260501.md)
+- taxonomy 主 case 草稿：
+  - [taxonomy_case_study_draft_20260501.md](/home/yuchong/auto-research-team/data/papers/taxonomy_case_study_draft_20260501.md)
+- supporting cases 草稿：
+  - [supporting_cases_20260501.md](/home/yuchong/auto-research-team/data/papers/supporting_cases_20260501.md)
+- 当前可直接写作的大纲：
+  - [paper_outline_20260513.md](/home/yuchong/auto-research-team/data/papers/paper_outline_20260513.md)
+
+### 2026-05-02 启动入口
+
+- 今日任务单：
+  - [paper_tasks_20260502.md](/home/yuchong/auto-research-team/MasterSkill/paper_tasks_20260502.md)
+- 当前论文初稿：
+  - [paper_draft_20260502.md](/home/yuchong/auto-research-team/data/papers/paper_draft_20260502.md)
+- 结果写作交接：
+  - [results_handoff_20260502.md](/home/yuchong/auto-research-team/data/papers/results_handoff_20260502.md)
+- 图表 caption 草稿：
+  - [figure_table_captions_20260502.md](/home/yuchong/auto-research-team/data/papers/figure_table_captions_20260502.md)
+
+### 2026-05-02 当前进度
+
+- 论文初稿已不再是纯 skeleton，现已写出：
+  - `Introduction`
+  - `Problem Setting`
+  - `Method`
+  - `Experimental Setup`
+  - `Main Results`
+  - `Case Study: Taxonomy Tree Merge`
+  - `Supporting Cases`
+  - `Limitations`
+  - `Conclusion`
+- 当前最主要缺口变成：
+  - `Abstract` 精修
+  - 图表 caption / figure notes
+  - 可能的行文压缩与术语统一
+
+### 2026-05-03 启动入口
+
+- 今日任务单：
+  - [paper_tasks_20260503.md](/home/yuchong/auto-research-team/MasterSkill/paper_tasks_20260503.md)
+- 当前主稿：
+  - [paper_draft_20260502.md](/home/yuchong/auto-research-team/data/papers/paper_draft_20260502.md)
+- 当前 captions：
+  - [figure_table_captions_20260502.md](/home/yuchong/auto-research-team/data/papers/figure_table_captions_20260502.md)
+
+### 2026-05-03 当前进度
+
+- 已完成第一轮 prose 压缩与术语统一
+- 当前主稿已更稳定地统一使用：
+  - `coverage gain`
+  - `official-task validation`
+  - `bundled prior`
+  - `regressive candidate`
+- 当前下一步更适合做：
+  - 格式化
+  - 术语微调
+  - 最终论证和行文润色
+
+### 2026-05-03 收尾状态
+
+- `5.3` 的任务已完成
+- 主稿已完成第一轮编辑，不再只是“完整 draft”，而是进入了
+  “可做最终润色”的状态
+- 当前下一步不应再扩新内容，应该转向：
+  - 格式化
+  - references
+  - 最终 line editing
+
+### 实验增强计划
+
+- 若要进一步提升论文竞争力，当前新增的高价值实验计划见：
+  - [paper_experiment_plan_20260503.md](/home/yuchong/auto-research-team/MasterSkill/paper_experiment_plan_20260503.md)
+
 ## 项目概述
 
 **MasterSkill** 是一个基于 Benchmark 驱动的技能发现系统。给定基础模型和 benchmark（如 SkillsBench），系统通过迭代研究，发现帮助模型超越 SOTA 的外部技能。

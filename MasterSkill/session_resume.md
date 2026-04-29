@@ -1,5 +1,10 @@
 # Session Resume
 
+> Status note on 2026-04-29:
+> this file captures an earlier recovery checkpoint. Keep it as historical
+> context, but use `MasterSkill/paper_plan_20260513.md` and `MasterSkill/state.md`
+> first when resuming current work.
+
 Updated: 2026-04-18
 
 ## Supplemental Note From Current Recovery Pass

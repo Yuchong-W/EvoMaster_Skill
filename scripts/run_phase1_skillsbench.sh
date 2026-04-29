@@ -76,6 +76,7 @@ case "$MODE" in
     run_cmd python3 run_local.py \
       --tasks "${CALIBRATION_TASKS[@]}" \
       --data-root "$DATA_ROOT" \
+      --no-persist-task-skills \
       --post-solve-optimization-rounds 1 \
       --max-research-cycles 3
     ;;
@@ -85,6 +86,7 @@ case "$MODE" in
     run_cmd python3 run_local.py \
       --tasks "${CALIBRATION_TASKS[@]}" \
       --pre-evolution-baseline \
+      --no-persist-task-skills \
       --data-root "$DATA_ROOT"
     ;;
   current-sweep)
@@ -93,6 +95,7 @@ case "$MODE" in
     run_cmd python3 run_local.py \
       --benchmark-all \
       --data-root "$DATA_ROOT" \
+      --no-persist-task-skills \
       --post-solve-optimization-rounds 1 \
       --max-research-cycles 3
     ;;
@@ -102,6 +105,7 @@ case "$MODE" in
     run_cmd python3 run_local.py \
       --benchmark-all \
       --pre-evolution-baseline \
+      --no-persist-task-skills \
       --data-root "$DATA_ROOT"
     ;;
   current-task)
@@ -114,6 +118,7 @@ case "$MODE" in
     run_cmd python3 run_local.py \
       --task "$SINGLE_TASK" \
       --data-root "$DATA_ROOT" \
+      --no-persist-task-skills \
       --post-solve-optimization-rounds 1 \
       --max-research-cycles 3
     ;;
@@ -127,6 +132,7 @@ case "$MODE" in
     run_cmd python3 run_local.py \
       --task "$SINGLE_TASK" \
       --pre-evolution-baseline \
+      --no-persist-task-skills \
       --data-root "$DATA_ROOT"
     ;;
   *)

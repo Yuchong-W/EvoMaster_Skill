@@ -1,0 +1,34 @@
+{
+  "run_id": "b75b49ca8f6b",
+  "task_id": "financial-modeling-qa",
+  "status": "solved",
+  "started_at": "2026-04-29T09:09:29.939378+00:00",
+  "finished_at": "2026-04-29T09:20:39.778220+00:00",
+  "duration_seconds": 630.6318082870002,
+  "problem_type": "knowledge_bottleneck",
+  "domain": "financial modeling",
+  "problem_modeling": "direct_solution",
+  "final_score": 1.0,
+  "final_model": "gpt-5.2",
+  "failure_class": "",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": [
+    {
+      "stage": "base_attempt",
+      "passed": true,
+      "model": "gpt-5.2",
+      "score": 1.0,
+      "duration_seconds": 616.776859489999,
+      "failure_class": "",
+      "skill_id": "",
+      "routing_reason": "task.toml difficulty=hard; execution config override=gpt-5.2",
+      "input_tokens": 1651703,
+      "cached_input_tokens": 1606144,
+      "output_tokens": 20108,
+      "notes": "",
+      "effective_input_tokens": 45559,
+      "effective_total_tokens": 65667
+    }
+  ]
+}

@@ -240,6 +240,7 @@ class Config:
     post_solve_optimization_rounds: int = 0
     base_attempt_include_task_skills: bool = True
     stop_after_base_attempt: bool = False
+    persist_task_skills: bool = True
 
     # Models per agent type (loaded from agent_config)
     # Override individual agents via kwargs if needed

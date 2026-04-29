@@ -1,0 +1,17 @@
+{
+  "run_id": "ae8af991e8a9",
+  "task_id": "video-filler-word-remover",
+  "status": "abandoned",
+  "started_at": "2026-04-21T10:47:29.782291+00:00",
+  "finished_at": "2026-04-21T10:49:27.520676+00:00",
+  "duration_seconds": 126.92939977900096,
+  "problem_type": "tool_bottleneck",
+  "domain": "media-processing",
+  "problem_modeling": "extraction",
+  "final_score": 0.0,
+  "final_model": "",
+  "failure_class": "abandoned_without_classification",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": []
+}

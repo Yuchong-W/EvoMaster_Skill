@@ -1,0 +1,24 @@
+{
+  "gravitational-wave-detection": {
+    "task_id": "gravitational-wave-detection",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "astronomy",
+    "problem_modeling": "search_retrieval",
+    "attempts": [],
+    "final_status": "abandoned",
+    "what_worked": "",
+    "why_worked_analysis": "",
+    "effective_skill_id": null
+  },
+  "latex-formula-extraction": {
+    "task_id": "latex-formula-extraction",
+    "problem_type": "tool_bottleneck",
+    "domain": "latex-extraction",
+    "problem_modeling": "extraction",
+    "attempts": [],
+    "final_status": "abandoned",
+    "what_worked": "",
+    "why_worked_analysis": "",
+    "effective_skill_id": null
+  }
+}

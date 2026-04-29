@@ -29,9 +29,16 @@ Category names use ` | ` separator, max 5 words, covering 70%+ of records in eac
 
 ## Installation
 
+The task runtime already includes the Python packages this skill needs:
+
 ```bash
-pip install pandas numpy scipy sentence-transformers nltk tqdm
-python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
+python3 -c "import pandas, numpy, sklearn, nltk"
+```
+
+If NLTK corpora are missing, bootstrap them once:
+
+```bash
+python3 -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
 ```
 
 ## 4-Step Pipeline
@@ -62,10 +69,22 @@ python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
 
 ## Usage
 
-**Use `scripts/pipeline.py` to run the complete 4-step workflow.**
+**Use `scripts/pipeline.py` to run the complete workflow.**
 
-See `scripts/pipeline.py` for:
-- Complete implementation of all 4 steps
-- Example code for processing multiple sources
-- Command-line interface
-- Individual step usage (for advanced control)
+```bash
+python3 /root/.codex/skills/hierarchical-taxonomy-clustering/scripts/pipeline.py \
+  --amazon /root/data/amazon_product_categories.csv \
+  --facebook /root/data/fb_product_categories.csv \
+  --google /root/data/google_shopping_product_categories.csv \
+  --output-dir /root/output
+```
+
+The script will:
+
+- standardize and lemmatize category paths
+- remove prefix paths when a longer descendant path exists
+- create a 5-level unified taxonomy with bounded branching
+- write both required CSV files to `/root/output`
+
+If you are debugging locally through the host-side workspace copy of the skill, the
+same script is also available under `./skills/hierarchical-taxonomy-clustering/scripts/pipeline.py`.

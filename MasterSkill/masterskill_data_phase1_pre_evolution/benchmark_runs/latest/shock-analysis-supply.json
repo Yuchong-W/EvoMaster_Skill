@@ -1,0 +1,17 @@
+{
+  "run_id": "7d00db205cd1",
+  "task_id": "shock-analysis-supply",
+  "status": "abandoned",
+  "started_at": "2026-04-21T10:35:51.397577+00:00",
+  "finished_at": "2026-04-21T10:40:10.716229+00:00",
+  "duration_seconds": 280.0791509330011,
+  "problem_type": "tool_bottleneck",
+  "domain": "financial-analysis",
+  "problem_modeling": "verification",
+  "final_score": 0.0,
+  "final_model": "",
+  "failure_class": "abandoned_without_classification",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": []
+}

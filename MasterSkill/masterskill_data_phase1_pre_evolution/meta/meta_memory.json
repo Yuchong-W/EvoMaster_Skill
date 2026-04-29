@@ -1,0 +1,36 @@
+{
+  "knowledge_bottleneck::astronomy::search_retrieval": {
+    "problem_type": "knowledge_bottleneck",
+    "domain": "astronomy",
+    "problem_modeling": "search_retrieval",
+    "effective_methods": [],
+    "ineffective_methods": [
+      {
+        "method_id": "unknown",
+        "description": "problem_type=knowledge_bottleneck, domain=astronomy, modeling=search_retrieval",
+        "failed_tasks": [
+          "gravitational-wave-detection"
+        ],
+        "failure_reason": "Could not solve within limits"
+      }
+    ],
+    "success_factors": []
+  },
+  "tool_bottleneck::latex-extraction::extraction": {
+    "problem_type": "tool_bottleneck",
+    "domain": "latex-extraction",
+    "problem_modeling": "extraction",
+    "effective_methods": [],
+    "ineffective_methods": [
+      {
+        "method_id": "unknown",
+        "description": "problem_type=tool_bottleneck, domain=latex-extraction, modeling=extraction",
+        "failed_tasks": [
+          "latex-formula-extraction"
+        ],
+        "failure_reason": "Could not solve within limits"
+      }
+    ],
+    "success_factors": []
+  }
+}

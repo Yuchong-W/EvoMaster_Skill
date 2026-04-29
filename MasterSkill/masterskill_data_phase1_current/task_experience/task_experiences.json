@@ -1,0 +1,210 @@
+{
+  "enterprise-information-search": {
+    "task_id": "enterprise-information-search",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "enterprise-search",
+    "problem_modeling": "multi_step_deduction",
+    "attempts": [
+      {
+        "skill_id": "enterprise-direct-answer-finalize",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "constraint_violation: Token accounting appears incorrect: all questions are assigned a fixed `tokens: 256`, which is not consistent with the reported run usage and does not cred..."
+        ],
+        "success_factors": [
+          "Produced `/root/answer.json` with required top-level keys `q1`, `q2`, `q3`.",
+          "Answers are consistently stored as lists, including multi-item outputs.",
+          "Output is valid JSON and directly readable by Python."
+        ]
+      },
+      {
+        "skill_id": "enterprise-q123-min-cost-retrieval",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "wrong_answer: No evidence the answers were actually retrieved from `/root/DATA` (the returned `eid_...` values and demo URLs look ungrounded/fabricated, and no retrieval trace o...",
+          "constraint_violation: The task requires logging the **consumed tokens** in the JSON output; the result writes a constant `256` per question (and the script describes an estimate...",
+          "missing_output: The solution is hard-coded to only handle `q1`/`q2`/`q3`. The prompt says `/root/question.txt` includes the key/value of **all questions**, which may include mor..."
+        ],
+        "success_factors": [
+          "`/root/answer.json` is valid JSON and uses list-normalized `answer` fields.",
+          "The output includes the required top-level question keys (for q1-q3) and per-question `tokens` fields."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.2",
+    "why_worked_analysis": "base model solved the task directly; problem_type=knowledge_bottleneck; domain=enterprise-search; problem_modeling=multi_step_deduction; routing=task.toml difficulty=hard; execution config override=gpt-5.2",
+    "effective_skill_id": null
+  },
+  "financial-modeling-qa": {
+    "task_id": "financial-modeling-qa",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "financial modeling",
+    "problem_modeling": "direct_solution",
+    "attempts": [
+      {
+        "skill_id": "financial-modeling-pairwise-match-delta-optimized",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "wrong_answer: The result `24` is not supported by verifiable evidence that the win metric and match-winner rules were correctly derived from `/root/background.pdf`. The provided...",
+          "missing_output: `/root/compute_answer.py` is truncated in the artifact, so the actual implemented logic for reading the Excel structure, identifying games, computing winners, an..."
+        ],
+        "success_factors": [
+          "`/root/answer.txt` exists and contains a single number in the required format.",
+          "The code suggests an attempt to model a scoring system and pair games as requested."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.2",
+    "why_worked_analysis": "base model solved the task directly; problem_type=knowledge_bottleneck; domain=financial modeling; problem_modeling=direct_solution; routing=task.toml difficulty=hard; execution config override=gpt-5.2",
+    "effective_skill_id": null
+  },
+  "pddl-tpp-planning": {
+    "task_id": "pddl-tpp-planning",
+    "problem_type": "tool_bottleneck",
+    "domain": "research",
+    "problem_modeling": "generation",
+    "attempts": [
+      {
+        "skill_id": "pddl-tpp-batch-solve-verify-minimal",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": false,
+        "duration_seconds": 123.97791472000972,
+        "input_tokens": 231090,
+        "cached_input_tokens": 204032,
+        "output_tokens": 2522,
+        "blocking_issues": [
+          "real_test: [Output Artifacts] - /app/task01.pkl (regular file, 16895 bytes) - /app/task01.txt ```text drive(truck1, depot1, market1) buy(truck1, goods1, market1, level0, level1,..."
+        ],
+        "success_factors": [
+          "Required plan files were produced for both tasks and are non-empty, line-oriented action sequences.",
+          "Action/object naming appears consistent with the provided TPP format example.",
+          "The packaged batch solver was run directly on `/app/problem.json` from the correct working directory.",
+          "Bundled verifier completed successfully after generation.",
+          "Expected sidecar artifacts (`.pkl`) were also emitted for both tasks."
+        ]
+      },
+      {
+        "skill_id": "pddl-tpp-solve-verify-minimal-v2",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": true,
+        "real_test_passed": true,
+        "duration_seconds": 148.3442037370005,
+        "input_tokens": 255904,
+        "cached_input_tokens": 248064,
+        "output_tokens": 972,
+        "blocking_issues": [],
+        "success_factors": [
+          "All required plan artifacts are present for both tasks (`.txt` plans plus `.pkl` sidecars).",
+          "Plans are in the required one-action-per-line format and look syntactically consistent with typical TPP domains.",
+          "Execution log claims verification with the official checker (`check_tpp_outputs.py`) against `/app/problem.json`, which strongly suggests the plans match the domain/problem and ..."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.2",
+    "why_worked_analysis": "base model solved the task directly; problem_type=tool_bottleneck; domain=research; problem_modeling=generation; routing=task.toml difficulty=medium; category=research; hard tags present; execution config override=gpt-5.2",
+    "effective_skill_id": null
+  },
+  "taxonomy-tree-merge": {
+    "task_id": "taxonomy-tree-merge",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "ml/nlp",
+    "problem_modeling": "generation",
+    "attempts": [
+      {
+        "skill_id": "taxonomy-tree-merge-fast",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "missing_output: Execution failed (timeout) and did not produce the required output CSVs: `/root/output/unified_taxonomy_full.csv` and `/root/output/unified_taxonomy_hierarchy.csv`.",
+          "constraint_violation: No evidence that the unified 5-level taxonomy was created or that constraints (10\u201320 top-level categories, 3\u201320 children per parent, naming rules, overlap ...",
+          "wrong_answer: The execution artifacts shown are unrelated (NLTK corpora downloads, pyc cache files) and do not constitute the requested unified taxonomy deliverables."
+        ],
+        "success_factors": [
+          "Input instruction was correctly captured in `/root/instruction.md`.",
+          "Some preprocessing/clustering script modules appear present (compiled pyc files), suggesting an intended multi-step pipeline exists."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.2",
+    "why_worked_analysis": "base model solved the task directly; problem_type=knowledge_bottleneck; domain=ml/nlp; problem_modeling=generation; routing=task.toml difficulty=hard; moderate instruction length; execution config override=gpt-5.2",
+    "effective_skill_id": null
+  },
+  "xlsx-recover-data": {
+    "task_id": "xlsx-recover-data",
+    "problem_type": "knowledge_bottleneck",
+    "domain": "spreadsheet",
+    "problem_modeling": "direct_solution",
+    "attempts": [],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.2",
+    "why_worked_analysis": "base model solved the task directly; problem_type=knowledge_bottleneck; domain=spreadsheet; problem_modeling=direct_solution; routing=task.toml difficulty=medium; medium tags present; execution config override=gpt-5.2",
+    "effective_skill_id": null
+  },
+  "seismic-phase-picking": {
+    "task_id": "seismic-phase-picking",
+    "problem_type": "tool_bottleneck",
+    "domain": "seismology",
+    "problem_modeling": "multi_step_deduction",
+    "attempts": [
+      {
+        "skill_id": "seismic-phase-picking-fastpath",
+        "quick_proposer_iterations": 0,
+        "research_triggered": false,
+        "judger_passed": false,
+        "real_test_passed": null,
+        "duration_seconds": 0.0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "output_tokens": 0,
+        "blocking_issues": [
+          "constraint_violation: The execution explicitly failed and timed out, so there is no evidence the required end-to-end pipeline (load all traces, pick P/S, write final `/root/resu...",
+          "missing_output: Although `/root/results.csv` is listed as an artifact, its contents/validity are not shown. With a timeout, it may be empty, partially written, malformed (wrong ...",
+          "wrong_answer: No evidence is provided that the produced picks achieve the required performance thresholds (P F1 >= 0.7, S F1 >= 0.6). Given the run failed, performance is unveri..."
+        ],
+        "success_factors": [
+          "Uses a strong, standard seismology DL picker (SeisBench/PhaseNet) that can meet F1 requirements when properly executed.",
+          "Explicitly targets 100 Hz sampling and includes reasonable peak-picking controls (thresholds, min distance, top-k caps).",
+          "Plans strict CSV output to `/root/results.csv` with required columns."
+        ]
+      }
+    ],
+    "final_status": "solved",
+    "what_worked": "Solved without external skill using gpt-5.2",
+    "why_worked_analysis": "base model solved the task directly; problem_type=tool_bottleneck; domain=seismology; problem_modeling=multi_step_deduction; routing=task.toml difficulty=hard; moderate instruction length; execution config override=gpt-5.2",
+    "effective_skill_id": null
+  }
+}

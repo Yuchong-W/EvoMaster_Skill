@@ -1,6 +1,11 @@
 # MasterSkill Roadmap
 
-Updated: 2026-04-18
+> Status note on 2026-04-29:
+> this roadmap remains useful as the broader OSS-to-paper trajectory, but it is
+> not the active near-term execution plan. The active near-term plan is
+> `MasterSkill/paper_plan_20260513.md`.
+
+Updated: 2026-04-19
 
 ## Why This Plan Is Right
 
@@ -24,6 +29,29 @@ The plan below therefore splits the work into two phases:
 - `Phase 1`: ship a high-quality OSS system with full-suite evidence
 - `Phase 2`: build seedless skill construction on top of that system and package the paper claim
 
+## Final Destination
+
+The final destination is not only a good open-source release.
+
+The final destination is a paper-level result on the current technical route:
+
+- an end-to-end system that can take benchmark feedback
+- research external knowledge
+- generate and refine candidate skills
+- improve hard-task coverage
+- improve medium/easy-task efficiency and stability
+- do so reproducibly enough to support a top-tier conference submission
+
+This means the roadmap should be read as:
+
+1. build the pipeline into a strong autonomous optimization system
+2. prove it works at suite scale as an OSS runtime
+3. then convert that same technical line into a paper claim with stronger causal evidence
+
+The paper ambition is therefore not a separate detour.
+
+It is the end state of the same technical program, once the pipeline is stable enough and the evidence is strong enough.
+
 ## Phase 1 Goal: Publishable OSS
 
 ### Target Outcome
@@ -40,6 +68,14 @@ This phase is complete when the repo is good enough that an external user can:
 - understand the runtime architecture
 - run at least a meaningful subset locally
 - reproduce the reported full-suite evaluation with the documented commands
+
+Operationally, Phase 1 is about turning the current loop into a dependable end-to-end optimization pipeline:
+
+- benchmark feedback is captured correctly
+- research is allowed to gather outside knowledge
+- candidate skills can be created and refined by the system
+- bundled task-local skills remain priors, not manual patch targets
+- the runtime can be monitored without requiring human-in-the-loop skill editing
 
 ### Product Claim For Phase 1
 
@@ -119,6 +155,9 @@ Continue improving:
 - internal-agent timeout and fallback behavior
 - research-loop termination and budgeting
 - official-test isolation and execution fidelity
+- clean-task-root compatibility
+- stall detection and explicit early-stop behavior
+- protection against mutating bundled task-local skills while preserving autonomous candidate-skill iteration
 
 This work should be judged by whether it improves full-suite reliability, not by whether it is elegant in isolation.
 
@@ -152,6 +191,7 @@ Each meaningful success should be classified as primarily one of:
 - `harness recovery`
 - `bundled-skill leverage`
 - `research-derived accepted skill`
+- `autonomous candidate-skill refinement`
 - `mixed / unclear`
 
 This prevents overclaiming and creates the base for Phase 2.
@@ -178,10 +218,11 @@ Do not keep changing the runtime while collecting the final Phase 1 evidence.
 Use this sequence:
 
 1. optimize on calibration tasks
-2. freeze the Phase 1 config
-3. run the full suite
-4. summarize the results
-5. only then prepare the release tag
+2. debug on clean hard tasks without manual skill edits
+3. freeze the Phase 1 config
+4. run the full suite in monitor-only mode
+5. summarize the results
+6. only then prepare the release tag
 
 ## Phase 1 Release Checklist
 
@@ -209,11 +250,26 @@ After Phase 1, extend `MasterSkill` so that it can start without task-local seed
 
 This is the phase with real top-tier paper potential.
 
+Phase 2 is not a reset.
+
+It is the continuation of the same pipeline direction after the OSS runtime is strong enough:
+
+- in Phase 1 the system may still rely on bundled task-local priors and runtime stabilization
+- in Phase 2 the same loop must show that it can build useful skills even when those priors are removed
+
 ### Research Claim For Phase 2
 
 On top of a stable benchmark runtime, `MasterSkill` can automatically construct, validate, and optimize external skills for hard tasks even without task-local seed skills.
 
 This is a much stronger claim than Phase 1 and should only be made after the OSS base is stable.
+
+If Phase 1 succeeds, the paper path should not be framed as “we hand-optimized some tasks”.
+
+It should be framed as:
+
+- we built a benchmark-driven optimization pipeline
+- we validated that it improves real task outcomes at suite scale
+- we then showed that the same pipeline can autonomously construct stronger skills with weaker priors
 
 ### Why Phase 2 Must Come After Phase 1
 
@@ -264,10 +320,13 @@ Focus on:
 - failure classification
 - loop termination
 - artifact correctness
+- clean-task-root compatibility
+- non-interference with bundled task-local skills
+- preserving autonomous candidate-skill refinement
 
 Deliverable:
 
-- calibration tasks are stable enough for long runs
+- calibration tasks are stable enough for long runs and clean hard-task debugging
 
 ### Milestone B: Full-Suite Frozen Run
 
@@ -276,6 +335,7 @@ Focus on:
 - frozen configuration
 - full `SkillsBench` execution
 - complete result capture
+- monitor-only operator behavior
 
 Deliverable:
 
@@ -318,6 +378,15 @@ Focus on:
 Deliverable:
 
 - paper-ready empirical package
+
+## Current Execution Reference
+
+The high-level roadmap is implemented tactically in:
+
+- [phase1_runbook.md](/home/yuchong/auto-research-team/MasterSkill/phase1_runbook.md)
+- [pipeline_todo.md](/home/yuchong/auto-research-team/MasterSkill/pipeline_todo.md)
+
+Use `pipeline_todo.md` for the current chain-debugging and monitor-only launch checklist.
 
 ## What Not To Do
 

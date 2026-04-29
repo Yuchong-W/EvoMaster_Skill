@@ -1,0 +1,17 @@
+{
+  "run_id": "c53e22bac999",
+  "task_id": "reserves-at-risk-calc",
+  "status": "abandoned",
+  "started_at": "2026-04-21T12:05:49.397945+00:00",
+  "finished_at": "2026-04-21T12:29:07.032817+00:00",
+  "duration_seconds": 1498.4338886910045,
+  "problem_type": "knowledge_bottleneck",
+  "domain": "financial-analysis",
+  "problem_modeling": "search_retrieval",
+  "final_score": 0.0,
+  "final_model": "",
+  "failure_class": "abandoned_without_classification",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": []
+}

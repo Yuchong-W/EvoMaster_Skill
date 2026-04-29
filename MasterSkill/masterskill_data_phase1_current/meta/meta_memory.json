@@ -1,0 +1,21 @@
+{
+  "tool_bottleneck::research::generation": {
+    "problem_type": "tool_bottleneck",
+    "domain": "research",
+    "problem_modeling": "generation",
+    "effective_methods": [
+      {
+        "method_id": "pddl-tpp-solve-verify-minimal-v2",
+        "description": "Solves `pddl-tpp-planning` batches by running the packaged pyperplan batch solver on `/app/problem.json`, then immediately verifies every emitted `plan_output` (and required sibling sidecar artifacts) with the bundled checkers; includes a tiny finalization script to sanity-check outputs and detec...",
+        "origin_task": "pddl-tpp-planning",
+        "transferability": "medium",
+        "conditions": "post_solve_optimization on task=pddl-tpp-planning",
+        "hyperparameters": {}
+      }
+    ],
+    "ineffective_methods": [],
+    "success_factors": [
+      "post_solve_optimization: duration 199.23s -> 148.34s; effective_tokens 11722 -> 8812; skill_md_size regressed 1066 -> 5104"
+    ]
+  }
+}

@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Optional
 
+from ..core.paths import resolve_task_dir
 from ..core.types import SkillBundle, SkillStatus
 
 
@@ -14,11 +15,11 @@ class SkillRepository:
     """
 
     def __init__(self, skillsbench_root: str):
-        self.skillsbench_root = Path(skillsbench_root)
+        self.skillsbench_root = skillsbench_root
 
     def get_skill_path(self, task_id: str, skill_id: str) -> Path:
         """Get path to a skill directory."""
-        return self.skillsbench_root / "tasks" / task_id / "environment" / "skills" / skill_id
+        return resolve_task_dir(self.skillsbench_root, task_id) / "environment" / "skills" / skill_id
 
     def skill_exists(self, task_id: str, skill_id: str) -> bool:
         """Check if a skill already exists for a task."""
@@ -124,7 +125,7 @@ class SkillRepository:
 
     def list_task_skills(self, task_id: str) -> list[str]:
         """List all skills for a task."""
-        skills_path = self.skillsbench_root / "tasks" / task_id / "environment" / "skills"
+        skills_path = resolve_task_dir(self.skillsbench_root, task_id) / "environment" / "skills"
         if not skills_path.exists():
             return []
         skill_dirs = [d for d in skills_path.iterdir() if d.is_dir()]

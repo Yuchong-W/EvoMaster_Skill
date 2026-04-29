@@ -1,5 +1,94 @@
 # MasterSkill Development Log
 
+## 2026-04-29
+
+### Paper-Track Reset And Evidence Freeze Progress
+
+- Added the active paper planning documents:
+  - `MasterSkill/paper_plan_20260513.md`
+  - `MasterSkill/paper_evidence_memo_20260429.md`
+- Reframed the near-term target:
+  - keep full-suite baseline/current comparison as a hard requirement
+  - use case studies as the explanation layer rather than as a substitute for suite-scale evidence
+- Standardized the current `SkillsBench` experiment policy on `gpt-5.2` for execution and experiment-facing agents.
+
+### Documentation Cleanup
+
+- Simplified the active doc hierarchy so the current resume path points first to:
+  - `paper_plan_20260513.md`
+  - `state.md`
+- Marked older Phase 1 OSS documents as reference / archival rather than current near-term drivers:
+  - `phase1_runbook.md`
+  - `pipeline_todo.md`
+  - `release_checklist.md`
+  - `session_resume.md`
+
+### Docker Recovery
+
+- Confirmed the active WSL environment had temporarily lost Docker access:
+  - `docker version` unavailable
+  - `/var/run/docker.sock` missing
+- Verified Windows-side Docker installation paths:
+  - `/mnt/e/Docker/Docker Desktop.exe`
+  - `/mnt/e/Docker/resources/bin/docker.exe`
+- Relaunched Docker Desktop from Windows and confirmed WSL connectivity recovered:
+  - Windows `docker.exe version` reached the daemon
+  - WSL `docker version` succeeded
+  - `/var/run/docker.sock` reappeared
+
+### Phase 1 Current Completion
+
+- Repaired `scripts/run_e1_current_until_complete.sh` ordering so paper-priority missing tasks start with:
+  - `taxonomy-tree-merge`
+  - `react-performance-debugging` kept last
+- Worked through duplicate stale resume processes during current completion and explicitly killed stale branches so only one active writer remained at a time.
+- Advanced `MasterSkill/masterskill_data_phase1_current/benchmark_runs/latest` coverage from `10 / 15` to `15 / 15`.
+
+Newly added current latest snapshots:
+
+- `taxonomy-tree-merge`
+  - solved
+  - final model `gpt-5.2`
+  - top-level duration later stabilized to `1028.40s`
+  - event-level effective tokens `23410`
+  - task container confirmed output artifacts:
+    - `unified_taxonomy_full.csv`
+    - `unified_taxonomy_hierarchy.csv`
+  - post-pass candidate `taxonomy-tree-merge-fast` failed official real test and was rejected
+- `xlsx-recover-data`
+  - solved
+  - final model `gpt-5.2`
+- `speaker-diarization-subtitles`
+  - abandoned
+  - persisted only after interrupting a stuck host-side wait
+- `video-filler-word-remover`
+  - abandoned
+  - persisted only after interrupting a stuck host-side wait
+- `react-performance-debugging`
+  - latest snapshot persisted after interrupting a late-stage host-side wait, completing `15 / 15` current coverage
+
+### End-Of-Day Frozen Compare
+
+Re-ran:
+
+- `scripts/summarize_masterskill_results.py` for baseline and current
+- `scripts/compare_masterskill_runs.py` for baseline vs current
+
+Observed suite-level comparison:
+
+- baseline solved: `3 / 15`
+- current solved: `5 / 15`
+- solve gains for current:
+  - `taxonomy-tree-merge`
+  - `xlsx-recover-data`
+- solve losses for current: `0`
+
+Observed claim boundary:
+
+- this frozen comparison supports a coverage-gain story better than a broad efficiency story
+- common-solved tasks currently do not show broad runtime/token wins in the frozen current root
+- the strongest primary case remains `taxonomy-tree-merge`
+
 ## 2026-04-14
 
 ### Repository Review
@@ -937,6 +1026,61 @@ Current local case pool size:
   - transition into research-driven new skill creation after those task-local priors did not produce a passing solve path quickly
 - This is useful Phase 1 evidence even before final task status is written: the runtime is not bailing out early and is exercising the intended `reuse -> research` fallback path on a hard task under the calibration configuration.
 
+### 2026-04-18 22:55 CST React Calibration Stall, Taxonomy Calibration Started
+
+- The focused `react-performance-debugging` Phase 1 calibration run did not write a final benchmark snapshot under the calibration root and stopped producing new shallow-trace output after the bundled-skill trace entries.
+- Manual interruption showed the host runner blocked in:
+  - `BenchmarkRunner._evaluate_with_judger`
+  - `DockerExecutor.execute_skill`
+  - `DockerExecutor._run_agent`
+  - `subprocess.run(...).communicate()`
+- This should be treated as a Phase 1 runtime/control-plane issue, not as an interpretable benchmark result for the task itself.
+- Per the Phase 1 runbook, the blocked hard-task calibration was paused and the calibration sequence continued with:
+  - `scripts/run_phase1_skillsbench.sh current-task taxonomy-tree-merge`
+- The goal remains unchanged:
+  - keep Phase 1 moving across representative tasks
+  - return to the `react` stall later as a runtime stabilization item instead of letting it block the full calibration path
+
+### 2026-04-18 23:12 CST Hard-Task Calibration Timeouts Recorded
+
+- `react-performance-debugging` has now been persisted under the Phase 1 current calibration root as:
+  - `status=abandoned`
+  - `failure_class=timeout`
+  - `run_id=57aedef4bd81`
+  - `duration_seconds=2380.39`
+- `taxonomy-tree-merge` current calibration also completed as:
+  - `status=abandoned`
+  - `failure_class=timeout`
+  - `run_id=c3669c23c2e2`
+  - `duration_seconds=767.86`
+- The taxonomy timeout is notable because the task-local bundled skill `hierarchical-taxonomy-clustering` was still discovered in `skills_tried`, but the current calibration run did not convert that prior into a pass under the frozen Phase 1 settings.
+- Current Phase 1 calibration state under `masterskill_data_phase1_calibration_current` is now:
+  - solved: `enterprise-information-search`, `pddl-tpp-planning`
+  - abandoned/timeout: `react-performance-debugging`, `taxonomy-tree-merge`
+- Next planned action remains to finish the current calibration set with `financial-modeling-qa`, then switch to the comparable baseline calibration pass.
+
+### 2026-04-19 10:40 CST Taxonomy Skill Upgrade Validated
+
+- Upgraded the bundled task-local skill `hierarchical-taxonomy-clustering` from a mostly methodological note into an executable pipeline:
+  - added a deterministic `scripts/pipeline.py`
+  - updated the skill instructions to point the agent toward the runnable pipeline
+- Removed the runtime dependency on downloading `nltk.wordnet` by replacing WordNet-based lemmatization with a built-in lightweight singularization pass. This makes the skill runnable inside the stock task image without extra network setup.
+- Ran the updated pipeline directly inside `masterskill:taxonomy-tree-merge-test-runtime` and then executed the official `tests/test_outputs.py` checks against its outputs.
+- Result:
+  - `unified_taxonomy_full.csv`: 8,968 rows
+  - `unified_taxonomy_hierarchy.csv`: 469 rows
+  - official checks passed: `22 / 22`
+- Re-ran the full MasterSkill chain with a fresh isolated data root:
+  - `/home/yuchong/auto-research-team/MasterSkill/masterskill_data_taxonomy_skill_validation`
+- During that live benchmark run, the task container did generate the expected output artifacts under `/root/output`, confirming the upgraded bundled skill is actually being invoked by the runtime.
+- The run still did not write a benchmark snapshot before the host process stalled, which sharpens the remaining blocker:
+  - the taxonomy hard case now appears solvable with the bundled skill
+  - the current failure mode is in the host-side `_run_agent` / `codex exec` completion path rather than the taxonomy method itself
+- Added a small prompt-side execution guard in `docker_executor.py`:
+  - prefer bundled end-to-end pipelines before inventing a new approach
+  - stop immediately once the required outputs exist and pass a minimal sanity check
+- A second isolated rerun with that prompt change (`masterskill_data_taxonomy_skill_validation_v2`) again generated the required taxonomy CSVs inside the live task container but still failed to persist a benchmark record before hanging, so the prompt adjustment alone is not sufficient to clear the host-side completion issue.
+
 ### 2026-04-18 16:04 CST Overnight run started
 
 - branch=overnight-masterskill-recovery; log=/home/yuchong/auto-research-team/MasterSkill/logs/overnight_20260418_160420.log
@@ -948,3 +1092,170 @@ Current local case pool size:
 ### 2026-04-18 16:17 CST baseline react-performance-debugging
 
 - exit_code=0; run_id=698b991b04a6 | status=abandoned | failure_class=timeout | duration_seconds=883.826898697007 | final_model=gpt-5.4 | final_score=0.0 | last_event=base_attempt | notes=Model could not solve autonomously
+
+### 2026-04-21 13:58 CST Next-Stage Plan Registered, E1 Started
+
+- Recorded the experiment-level next-stage roadmap (`E1` to `E10`) into `pipeline_todo.md` as the active execution reference.
+- Reconfirmed the end objective as chain-level autonomous skill quality improvement with pass-rate trajectory toward `>=90%` SkillsBench.
+- Began `E1` execution flow:
+  - freeze the run protocol
+  - run one frozen `baseline-sweep`
+  - run one frozen `current-sweep`
+  - verify no missing task snapshots under `benchmark_runs/latest/`
+
+### 2026-04-21 14:01 CST E1 Baseline Sweep Launched
+
+- Started frozen baseline full-suite run:
+  - `scripts/run_phase1_skillsbench.sh baseline-sweep`
+- Runtime command:
+  - `python3 run_local.py --benchmark-all --pre-evolution-baseline --no-persist-task-skills --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data_phase1_pre_evolution`
+- Run log:
+  - `/home/yuchong/auto-research-team/MasterSkill/logs/phase1_baseline-sweep_20260421_140133.log`
+- Live process snapshot at launch window:
+  - `bash scripts/run_phase1_skillsbench.sh baseline-sweep`
+  - `python3 run_local.py --benchmark-all --pre-evolution-baseline ...`
+
+### 2026-04-21 14:40 CST E1 In-Flight Status + Follow-up Session Bound
+
+- Baseline sweep remains active on the frozen protocol and has produced 5 latest records so far under:
+  - `/home/yuchong/auto-research-team/MasterSkill/masterskill_data_phase1_pre_evolution/benchmark_runs/runs.jsonl`
+- Mid-run quality snapshot:
+  - solved: 3
+  - abandoned: 2
+  - `failure_class=builderror`: 2
+- Confirmed one long-running tool-setup phase in-container (`apt-get install ... build-essential gfortran openblas ...`) is the current wall-clock bottleneck rather than host process death.
+- Bound the E1 post-baseline follow-up to a persistent elevated PTY session:
+  - session id: `10485`
+  - command: `scripts/run_e1_followup.sh MasterSkill/logs/e1_followup_live_<timestamp>.log`
+  - current state: waiting for `baseline-sweep` process to finish, then auto-runs `current-sweep` + baseline/current summaries + compare.
+
+### 2026-04-21 15:02 CST E1 Baseline Hang Detected, Switched To Resume Mode
+
+- Observed no benchmark artifact updates after `14:36 CST`:
+  - `benchmark_runs/runs.jsonl` and `benchmark_runs/tasks/*.jsonl` stopped advancing
+  - host `run_local.py --benchmark-all --pre-evolution-baseline` remained alive but idle (`State=S`, wait channel `unix_stream_read_generic`)
+  - task containers eventually dropped to none, confirming no active test execution during the freeze window
+- Applied the runbook-style intervention:
+  - interrupted the hung baseline PTY session (`Ctrl-C`)
+  - paused the waiting follow-up session before it could continue an invalid sequence
+- Resumed baseline in the same data root with unsolved-task mode:
+  - `python3 run_local.py --benchmark --pre-evolution-baseline --no-persist-task-skills --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data_phase1_pre_evolution`
+  - log: `/home/yuchong/auto-research-team/MasterSkill/logs/phase1_baseline-resume_20260421_150236.log`
+- Resume confirmation:
+  - `runs.jsonl` advanced from `5` to `6`
+  - `quantum-numerical-simulation` snapshot persisted (abandoned without classification), indicating the previous stuck segment was crossed and baseline execution resumed.
+
+### 2026-04-21 15:14 CST E1 Auto-Chaining Rebound For Resume Flow
+
+- Updated `scripts/run_e1_followup.sh` wait condition so it blocks on either baseline mode:
+  - wrapper mode: `scripts/run_phase1_skillsbench.sh baseline-sweep`
+  - direct resume mode: `python3 run_local.py --benchmark --pre-evolution-baseline ...`
+  - full baseline mode: `python3 run_local.py --benchmark-all --pre-evolution-baseline ...`
+- Relaunched follow-up watcher with the updated logic:
+  - session id: `53701`
+  - log: `/home/yuchong/auto-research-team/MasterSkill/logs/e1_followup_live_20260421_151415.log`
+  - state: waiting for baseline resume process to exit before automatically starting `current-sweep` and post-run summaries/comparison.
+- Baseline resume remains active:
+  - session id: `91648`
+  - process: `python3 run_local.py --benchmark --pre-evolution-baseline --no-persist-task-skills --data-root .../masterskill_data_phase1_pre_evolution`
+
+### 2026-04-21 15:29 CST E1 Sequencing Guard Added (Baseline Coverage Gate)
+
+- Detected sequencing bug during live orchestration:
+  - follow-up watcher proceeded to `current-sweep` as soon as baseline process disappeared, even though baseline `latest` coverage was only `6/15`.
+  - this was triggered after a manual interrupt of a hung baseline-resume run.
+- Mitigation applied in `scripts/run_e1_followup.sh`:
+  - added helper checks for baseline process status and baseline `latest/*.json` coverage
+  - watcher now proceeds only when both are true:
+    - baseline process is not running
+    - baseline latest coverage reaches expected task count (`15/15`)
+- Immediately enforced corrected E1 order:
+  - interrupted prematurely started `current-sweep`
+  - restarted baseline-resume:
+    - session id: `75862`
+    - command: `python3 run_local.py --benchmark --pre-evolution-baseline --no-persist-task-skills --data-root /home/yuchong/auto-research-team/MasterSkill/masterskill_data_phase1_pre_evolution`
+  - relaunched follow-up watcher with coverage gate:
+    - session id: `26581`
+    - log: `/home/yuchong/auto-research-team/MasterSkill/logs/e1_followup_live_20260421_152927.log`
+
+### 2026-04-21 15:35 CST E1 Current-Root Cleanliness Guard Added
+
+- Added an additional E1 safety step in `scripts/run_e1_followup.sh` before starting `current-sweep`:
+  - if `/MasterSkill/masterskill_data_phase1_current/benchmark_runs/runs.jsonl` already exists and is non-empty, move the whole current root to a timestamped backup:
+    - `masterskill_data_phase1_current_pre_e1_backup_<timestamp>`
+  - recreate a clean `masterskill_data_phase1_current` directory for the new frozen current run.
+- Reason:
+  - earlier interrupted `current-sweep` attempts left partial records in the current root, which would contaminate baseline-vs-current interpretation for E1.
+- Restarted follow-up watcher so the new guard is active:
+  - interrupted prior watcher session (`26581`)
+  - launched new watcher session:
+    - session id: `83272`
+    - log: `/home/yuchong/auto-research-team/MasterSkill/logs/e1_followup_live_20260421_153527.log`
+
+### 2026-04-21 16:30 CST E1 Baseline Auto-Resume Upgraded To Missing-Task Per-Task Mode
+
+- Upgraded baseline continuation from manual/whole-unsolved retries to a dedicated loop script:
+  - `scripts/run_e1_baseline_until_complete.sh`
+- Evolution of the strategy during this window:
+  - v1: `--benchmark` retries (still repeatedly hit early tasks)
+  - v2: `--tasks <all missing>` batch (reduced re-run noise but still vulnerable to one heavy task blocking the whole batch)
+  - v3 (active): iterate missing tasks one-by-one with per-task timeout and progress logging.
+- Active policy in v3:
+  - identify missing tasks from `benchmark_runs/latest/*.json` under baseline root
+  - run each missing task with:
+    - `python3 run_local.py --task <task_id> --pre-evolution-baseline --no-persist-task-skills --data-root ...`
+  - enforce per-task timeout (`PER_TASK_TIMEOUT_SECONDS`, currently 900s)
+  - move `react-performance-debugging` to the end of each missing-task pass to avoid front-loading long stalls
+- Follow-up watcher alignment:
+  - updated `scripts/run_e1_followup.sh` baseline detection to include `--tasks` and `--task` baseline processes
+  - relaunched watcher session:
+    - session id: `28203`
+    - log: `/home/yuchong/auto-research-team/MasterSkill/logs/e1_followup_live_20260421_160731.log`
+- Live evidence of forward motion under v3:
+  - `reserves-at-risk-calc` timed out at per-task boundary and loop automatically moved to `seismic-phase-picking` without manual intervention.
+
+### 2026-04-21 19:05 CST E1 Baseline Coverage Completed (15/15)
+
+- Applied graceful-interrupt-driven progression on stalled baseline missing tasks.
+- Baseline data root reached full latest coverage:
+  - `MasterSkill/masterskill_data_phase1_pre_evolution/benchmark_runs/latest/*.json = 15`
+- Baseline task coverage now includes all 15 phase tasks, with explicit persisted latest snapshots.
+- The follow-up watcher detected completion and automatically transitioned into current sweep.
+
+### 2026-04-21 19:23 CST E1 Current Sweep Switched To Controlled Per-Task Completion
+
+- Observed current full-sweep (`--benchmark-all`) beginning to show the same host-side long-wait pattern after initial tasks.
+- To keep E1 moving deterministically, introduced:
+  - `scripts/run_e1_current_until_complete.sh`
+  - behavior mirrors baseline recovery:
+    - iterate missing current tasks from `current/benchmark_runs/latest`
+    - run one task at a time with current settings:
+      - `--no-persist-task-skills`
+      - `--post-solve-optimization-rounds 1`
+      - `--max-research-cycles 3`
+    - timeout wrapper uses graceful signal first:
+      - `timeout --signal=INT --kill-after=60s ...`
+    - keeps `react-performance-debugging` last in each pass
+- Live current progress under controlled mode:
+  - persisted current latest coverage advanced from `2/15` to `4/15` while continuing forward to next missing task (`pddl-tpp-planning`).
+
+### 2026-04-30 17:30 CST Paper-Facing GPT-5.2 Consistency Completed
+
+- Completed strict `gpt-5.2` consistency reruns for paper-facing solved tasks.
+- Current-side solved reruns completed:
+  - `enterprise-information-search`
+  - `financial-modeling-qa`
+  - `pddl-tpp-planning`
+  - `seismic-phase-picking`
+- Baseline-side solved reruns completed:
+  - `enterprise-information-search`
+  - `financial-modeling-qa`
+  - `pddl-tpp-planning`
+- Paper-facing `baseline/current latest` solved snapshots are now uniformly
+  `gpt-5.2`.
+- Refreshed frozen compare after reruns:
+  - baseline solved: `3 / 15`
+  - current solved: `6 / 15`
+  - solve gains: `seismic-phase-picking`, `taxonomy-tree-merge`,
+    `xlsx-recover-data`
+  - solve losses: `0`

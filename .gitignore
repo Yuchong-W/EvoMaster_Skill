@@ -14,3 +14,16 @@ MasterSkill/case/tasks/**/playwright-report/
 MasterSkill/case/tasks/**/test-results/
 MasterSkill/masterskill_data/shallow/skills/react-nextjs-performance-repair/
 MasterSkill/masterskill_data/shallow/skills/taxonomy-tree-merge-lite/
+
+# MasterSkill local run artifacts (keep workspace clean; do not affect tracked files)
+MasterSkill/masterskill_data_clean_*/
+MasterSkill/masterskill_data_phase1_batch_probe/
+MasterSkill/masterskill_data_phase1_calibration_pre_evolution/
+MasterSkill/masterskill_data_taxonomy_*/
+MasterSkill/masterskill_data_phase1_calibration_current/benchmark_runs/runs.jsonl
+MasterSkill/masterskill_data_phase1_calibration_current/benchmark_runs/tasks/
+MasterSkill/masterskill_data_phase1_calibration_current/benchmark_runs/latest/*.json
+MasterSkill/masterskill_data_phase1_calibration_current/meta/
+MasterSkill/masterskill_data_phase1_calibration_current/shallow/
+MasterSkill/masterskill_data_phase1_calibration_current/task_experience/
+MasterSkill/masterskill_data_phase1_current_pre_e1_backup_*/

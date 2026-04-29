@@ -1,5 +1,10 @@
 # Phase 1 Runbook
 
+> Status note on 2026-04-29:
+> this file is now a reference runbook for the broader Phase 1 OSS milestone.
+> It is no longer the primary near-term driver for the `2026-05-13` paper
+> target. See `MasterSkill/paper_plan_20260513.md`.
+
 Updated: 2026-04-18
 
 ## Purpose
@@ -27,6 +32,8 @@ Reach a publishable OSS milestone where:
 ## Canonical References
 
 - High-level plan: [roadmap.md](/home/yuchong/auto-research-team/MasterSkill/roadmap.md)
+- Current pipeline todo: [pipeline_todo.md](/home/yuchong/auto-research-team/MasterSkill/pipeline_todo.md)
+- Release gate: [release_checklist.md](/home/yuchong/auto-research-team/MasterSkill/release_checklist.md)
 - Technical routes: [technical_design.md](/home/yuchong/auto-research-team/MasterSkill/technical_design.md)
 - Current project state: [state.md](/home/yuchong/auto-research-team/MasterSkill/state.md)
 - Recovery / handoff context: [session_resume.md](/home/yuchong/auto-research-team/MasterSkill/session_resume.md)

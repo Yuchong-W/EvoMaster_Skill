@@ -1,0 +1,50 @@
+{
+  "run_id": "dd19e8400829",
+  "task_id": "taxonomy-tree-merge",
+  "status": "solved",
+  "started_at": "2026-04-29T07:04:13.513991+00:00",
+  "finished_at": "2026-04-29T07:22:00.148161+00:00",
+  "duration_seconds": 1028.3962427719998,
+  "problem_type": "knowledge_bottleneck",
+  "domain": "ml/nlp",
+  "problem_modeling": "generation",
+  "final_score": 1.0,
+  "final_model": "gpt-5.2",
+  "failure_class": "",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": [
+    {
+      "stage": "base_attempt",
+      "passed": true,
+      "model": "gpt-5.2",
+      "score": 1.0,
+      "duration_seconds": 338.0703588460001,
+      "failure_class": "",
+      "skill_id": "",
+      "routing_reason": "task.toml difficulty=hard; moderate instruction length; execution config override=gpt-5.2",
+      "input_tokens": 456284,
+      "cached_input_tokens": 434432,
+      "output_tokens": 1558,
+      "notes": "",
+      "effective_input_tokens": 21852,
+      "effective_total_tokens": 23410
+    },
+    {
+      "stage": "post_solve_optimize_round_1",
+      "passed": false,
+      "model": "",
+      "score": 0.0,
+      "duration_seconds": 0.0,
+      "failure_class": "",
+      "skill_id": "taxonomy-tree-merge-fast",
+      "routing_reason": "",
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0,
+      "notes": "candidate failed official real test",
+      "effective_input_tokens": 0,
+      "effective_total_tokens": 0
+    }
+  ]
+}

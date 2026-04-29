@@ -1,0 +1,8 @@
+{
+  "skill_id": "taxonomy-tree-merge-fast",
+  "name": "Taxonomy Tree Merge (Fast, Deterministic)",
+  "status": "draft",
+  "description": "Unifies multiple e-commerce category-path CSVs into a single 5-level taxonomy and outputs (1) full source-to-unified mapping and (2) the deduped unified hierarchy, using lightweight TF\u2011IDF + deterministic MiniBatchKMeans (no external embedding downloads).",
+  "trigger_condition": "Use when the task provides one or more CSVs with a `category_path` column containing hierarchical paths like `A > B > C`, and requires a unified 5-level taxonomy plus two CSV outputs (full mapping + hierarchy).",
+  "usage": "Run the end-to-end script (no extra steps):\n\n1) Execute:\n   python3 scripts/pipeline.py \\\n     --amazon /root/data/amazon_product_categories.csv \\\n     --facebook /root/data/fb_product_categories.csv \\\n     --google /root/data/google_shopping_product_categories.csv \\\n     --output-dir /root/output\n\n2) Outputs written (verifier-facing artifacts):\n   - /root/output/unified_taxonomy_full.csv\n   - /root/output/unified_taxonomy_hierarchy.csv\n\n3) Finalization checklist (must do before exiting):\n   - Re-open both CSVs and parse with pandas.\n   - Assert required columns exist:\n     full: source, category_path, depth, unified_level_1..unified_level_5\n     hierarchy: unified_level_1..unified_level_5\n   - Assert `unified_level_1` is non-null for the vast majority of rows.\n   - Assert hierarchy is deduped (drop_duplicates equals itself) and not empty.\n   - Print a one-line summary: row counts for both files and top-level unique category count."
+}

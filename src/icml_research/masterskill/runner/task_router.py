@@ -1,7 +1,10 @@
-"""Task-aware execution routing."""
+"""Task-aware execution routing.
 
-from pathlib import Path
+SkillsBench experiment policy currently fixes the execution model to gpt-5.2.
+Difficulty routing is still retained for telemetry and analysis.
+"""
 
+from ..core.paths import resolve_task_dir
 from ..core.types import ExecutionPlan, SkillBundle, TaskDifficulty
 
 
@@ -19,7 +22,7 @@ class TaskRouter:
     }
 
     def __init__(self, skillsbench_root: str):
-        self.skillsbench_root = Path(skillsbench_root)
+        self.skillsbench_root = skillsbench_root
         self._task_toml_cache: dict[str, dict] = {}
 
     def build_plan(
@@ -61,7 +64,7 @@ class TaskRouter:
             return self._task_toml_cache[task_id]
 
         task_toml = {}
-        toml_path = self.skillsbench_root / "tasks" / task_id / "task.toml"
+        toml_path = resolve_task_dir(self.skillsbench_root, task_id) / "task.toml"
         if toml_path.exists():
             try:
                 import tomllib
@@ -129,13 +132,7 @@ class TaskRouter:
         instruction: str,
         skill: SkillBundle | None,
     ) -> str:
-        if difficulty == TaskDifficulty.HARD:
-            return "gpt-5.4"
-        if difficulty == TaskDifficulty.MEDIUM:
-            return "gpt-5.3-codex"
-        if len(instruction) > 700 or (skill is not None and len(skill.to_skill_md()) > 1200):
-            return "gpt-5.2"
-        return "gpt-5.1"
+        return "gpt-5.2"
 
     def _max_difficulty(self, left: TaskDifficulty, right: TaskDifficulty) -> TaskDifficulty:
         order = {

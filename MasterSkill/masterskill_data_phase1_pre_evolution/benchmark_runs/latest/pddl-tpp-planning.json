@@ -1,0 +1,34 @@
+{
+  "run_id": "58813b33611b",
+  "task_id": "pddl-tpp-planning",
+  "status": "solved",
+  "started_at": "2026-04-29T09:20:54.061455+00:00",
+  "finished_at": "2026-04-29T09:23:43.592156+00:00",
+  "duration_seconds": 160.76663622900014,
+  "problem_type": "tool_bottleneck",
+  "domain": "research",
+  "problem_modeling": "generation",
+  "final_score": 1.0,
+  "final_model": "gpt-5.2",
+  "failure_class": "",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": [
+    {
+      "stage": "base_attempt",
+      "passed": true,
+      "model": "gpt-5.2",
+      "score": 1.0,
+      "duration_seconds": 144.63352392800152,
+      "failure_class": "",
+      "skill_id": "",
+      "routing_reason": "task.toml difficulty=medium; category=research; hard tags present; execution config override=gpt-5.2",
+      "input_tokens": 329795,
+      "cached_input_tokens": 321024,
+      "output_tokens": 1236,
+      "notes": "",
+      "effective_input_tokens": 8771,
+      "effective_total_tokens": 10007
+    }
+  ]
+}

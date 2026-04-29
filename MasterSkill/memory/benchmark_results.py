@@ -33,6 +33,12 @@ class BenchmarkResultStore:
         latest_path = self.latest_dir / f"{record.task_id}.json"
         latest_path.write_text(json.dumps(payload, indent=2))
 
+    def save_latest(self, record: BenchmarkRunRecord) -> None:
+        """Refresh only the latest snapshot for checkpointing in long runs."""
+        payload = self._to_jsonable(record)
+        latest_path = self.latest_dir / f"{record.task_id}.json"
+        latest_path.write_text(json.dumps(payload, indent=2))
+
     def _to_jsonable(self, record: BenchmarkRunRecord) -> dict:
         """Convert dataclasses and enums into JSON-safe primitives."""
         payload = self._normalize(asdict(record))

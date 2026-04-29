@@ -1,0 +1,8 @@
+{
+  "skill_id": "seismic-phase-picking-fastpath",
+  "name": "SeisBench PhaseNet Fast Phase Picking (NPZ \u2192 results.csv)",
+  "status": "draft",
+  "description": "End-to-end, low-overhead seismic phase picking for 3\u2011component NPZ traces using a pretrained SeisBench picker (PhaseNet), with minimal preprocessing, peak picking, and strict CSV output validation to `/root/results.csv`.",
+  "trigger_condition": "Use when you must pick P/S arrival indices for many short 3\u2011component traces stored as `.npz` (with `data`, `dt`, `channels`) and the grader expects `/root/results.csv` with rows `{file_name,phase,pick_idx}`; especially when F1 targets require robust picks and time is limited.",
+  "usage": "Workflow (keep it direct; avoid exploration):\n1) Run the provided script to generate `/root/results.csv` from all `.npz` in `/root/data/`.\n2) The script: loads each file, standardizes channel order (Z/N/E best-effort), detrends + light bandpass, resamples to 100 Hz for PhaseNet, runs PhaseNet once per trace (batched), then converts probability peaks back to original sample indices.\n3) Thresholds are tuned for F1 (prefer recall for P; slightly stricter for S). The script outputs 0+ picks per phase per file (allowed).\n4) Finalization checklist is enforced in-script: writes CSV, reopens it, validates required columns + integer indices, and fails loudly if malformed.\n\nCommand:\n- `python3 /root/pick_phases.py`\n\nIf results are too sparse or too noisy, adjust ONLY these constants near the top of the script (do not add extra logging/plots): `P_THRESH`, `S_THRESH`, `MIN_DIST_S` (seconds), `BANDPASS` (Hz). Re-run the command."
+}

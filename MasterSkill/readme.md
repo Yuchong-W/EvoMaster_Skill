@@ -25,8 +25,17 @@ that namespace is retained only for compatibility with the repo's earlier layout
 
 ## Docs
 
+Active docs:
+
+- Paper plan for `2026-05-13`: `MasterSkill/paper_plan_20260513.md`
+- Project state and active doc map: `MasterSkill/state.md`
 - Technical design: `MasterSkill/technical_design.md`
-- Project state: `MasterSkill/state.md`
-- Session resume: `MasterSkill/session_resume.md`
 - Development log: `MasterSkill/development_log.md`
-- SkillsBench task classification: `MasterSkill/skillsbench_task_classification.md`
+
+Reference / archival docs:
+
+- Phase 1 OSS runbook: `MasterSkill/phase1_runbook.md`
+- Phase 1 tactical todo: `MasterSkill/pipeline_todo.md`
+- Phase 1 release checklist: `MasterSkill/release_checklist.md`
+- Earlier session recovery notes: `MasterSkill/session_resume.md`
+- Historical task classification context: `MasterSkill/skillsbench_task_classification.md`

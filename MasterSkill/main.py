@@ -37,6 +37,11 @@ def main():
         action="store_true",
         help="Measure pure base-attempt pass rate with no bundled task-local skills exposed and stop before any reuse/research/evolution steps.",
     )
+    parser.add_argument(
+        "--no-persist-task-skills",
+        action="store_true",
+        help="Do not write newly accepted/evolved skills back into tasks/<task>/environment/skills during this run.",
+    )
 
     args = parser.parse_args()
 
@@ -59,6 +64,7 @@ def main():
         post_solve_optimization_rounds=0 if args.pre_evolution_baseline else args.post_solve_optimization_rounds,
         base_attempt_include_task_skills=not args.pre_evolution_baseline,
         stop_after_base_attempt=args.pre_evolution_baseline,
+        persist_task_skills=not args.no_persist_task_skills,
     )
 
     # Initialize runner

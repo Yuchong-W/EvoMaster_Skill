@@ -1,0 +1,17 @@
+{
+  "run_id": "3f8fa1220931",
+  "task_id": "gravitational-wave-detection",
+  "status": "abandoned",
+  "started_at": "2026-04-21T07:15:22.258980+00:00",
+  "finished_at": "2026-04-21T07:26:12.145483+00:00",
+  "duration_seconds": 694.1983024189976,
+  "problem_type": "knowledge_bottleneck",
+  "domain": "astronomy",
+  "problem_modeling": "search_retrieval",
+  "final_score": 0.0,
+  "final_model": "",
+  "failure_class": "abandoned_without_classification",
+  "real_test_failures": 0,
+  "skills_tried": [],
+  "events": []
+}

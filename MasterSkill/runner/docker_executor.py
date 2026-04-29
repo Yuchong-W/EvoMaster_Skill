@@ -23,6 +23,7 @@ try:
 except ImportError:
     docker = None
 
+from ..core.paths import resolve_task_dir
 from ..core.types import SkillBundle
 from .task_router import TaskRouter
 
@@ -100,7 +101,7 @@ class DockerExecutor:
                 "output_tokens": int,
             }
         """
-        task_dir = self.skillsbench_root / "tasks" / task_id
+        task_dir = resolve_task_dir(self.skillsbench_root, task_id)
         if not self._task_has_dockerfile(task_dir):
             return {
                 "success": False,
@@ -144,6 +145,8 @@ class DockerExecutor:
                 exit_code=exec_result.exit_code,
                 passed=exec_result.exit_code == 0,
             )
+            if getattr(exec_result, "failure_class", ""):
+                failure_class = exec_result.failure_class
 
             return {
                 "success": exec_result.exit_code == 0,
@@ -194,7 +197,7 @@ class DockerExecutor:
                 "output_tokens": int,
             }
         """
-        task_dir = self.skillsbench_root / "tasks" / task_id
+        task_dir = resolve_task_dir(self.skillsbench_root, task_id)
         test_file = task_dir / "tests" / "test_outputs.py"
         test_script = task_dir / "tests" / "test.sh"
         if not test_file.exists() and not test_script.exists():
@@ -274,6 +277,8 @@ class DockerExecutor:
                 exit_code=test_result.exit_code if exec_result.exit_code == 0 else exec_result.exit_code,
                 passed=passed,
             )
+            if getattr(exec_result, "failure_class", ""):
+                failure_class = exec_result.failure_class
             return {
                 "passed": passed,
                 "score": 1.0 if passed else 0.0,
@@ -847,12 +852,15 @@ class DockerExecutor:
         timeout_sec = min(timeout, exec_cfg.get("timeout", 600))
         with tempfile.TemporaryDirectory(prefix="masterskill-host-exec-") as tmpdir:
             workspace = Path(tmpdir)
+            activity_log_path = workspace / "agent-activity.log"
+            failure_class: str = ""
             self._prepare_host_exec_workspace(
                 workspace,
                 container,
                 task_id,
                 skill,
                 include_task_local_skills=include_task_local_skills,
+                activity_log_path=activity_log_path,
             )
             prompt = self._build_prompt(
                 instruction,
@@ -883,21 +891,91 @@ class DockerExecutor:
                 prompt,
             ]
             started_at = time.monotonic()
+            stall_timeout_sec = min(timeout_sec, exec_cfg.get("stall_timeout", 240))
             try:
                 self._log(f"codex exec start task={task_id}")
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout_sec + 60,
-                )
-                output, input_tokens, cached_input_tokens, output_tokens = self._summarize_codex_json_output(
-                    stdout=result.stdout or "",
-                    stderr=result.stderr or "",
-                    last_message_path=last_message_path,
-                )
-                exit_code = result.returncode
-                self._log(f"codex exec finished task={task_id} exit_code={exit_code}")
+                stdout_path = workspace / "codex-stdout.log"
+                stderr_path = workspace / "codex-stderr.log"
+                timed_out = False
+                stalled = False
+                with stdout_path.open("w+", encoding="utf-8") as stdout_handle, stderr_path.open(
+                    "w+", encoding="utf-8"
+                ) as stderr_handle:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=stdout_handle,
+                        stderr=stderr_handle,
+                        text=True,
+                    )
+                    last_activity = started_at
+                    latest_mtime = self._latest_workspace_activity_mtime(
+                        workspace,
+                        activity_log_path=activity_log_path,
+                        last_message_path=last_message_path,
+                        codex_stdout_path=stdout_path,
+                        codex_stderr_path=stderr_path,
+                    )
+                while proc.poll() is None:
+                    now = time.monotonic()
+                    current_mtime = self._latest_workspace_activity_mtime(
+                        workspace,
+                        activity_log_path=activity_log_path,
+                        last_message_path=last_message_path,
+                        codex_stdout_path=stdout_path,
+                        codex_stderr_path=stderr_path,
+                    )
+                    if current_mtime > latest_mtime:
+                        latest_mtime = current_mtime
+                        last_activity = now
+                    if now - started_at > timeout_sec + 60:
+                        timed_out = True
+                        proc.kill()
+                        break
+                    if stall_timeout_sec > 0 and now - last_activity > stall_timeout_sec:
+                        stalled = True
+                        proc.kill()
+                        break
+                    time.sleep(5)
+                try:
+                    result = proc.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    result = proc.wait(timeout=15)
+                stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+                stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
+                if stalled:
+                    output, input_tokens, cached_input_tokens, output_tokens = self._summarize_codex_json_output(
+                        stdout=stdout,
+                        stderr=stderr,
+                        last_message_path=last_message_path,
+                    )
+                    output = (
+                        f"{output}\nExecution stalled with no observable workspace activity."
+                        if output
+                        else "Execution stalled with no observable workspace activity."
+                    )
+                    failure_class = "stall"
+                    exit_code = 124
+                    self._log(f"codex exec stalled task={task_id}")
+                elif timed_out:
+                    output, input_tokens, cached_input_tokens, output_tokens = self._summarize_codex_json_output(
+                        stdout=stdout,
+                        stderr=stderr,
+                        last_message_path=last_message_path,
+                    )
+                    output = f"{output}\nExecution timed out." if output else "Execution timed out."
+                    failure_class = "timeout"
+                    exit_code = 124
+                    self._log(f"codex exec timed out task={task_id}")
+                else:
+                    output, input_tokens, cached_input_tokens, output_tokens = self._summarize_codex_json_output(
+                        stdout=stdout,
+                        stderr=stderr,
+                        last_message_path=last_message_path,
+                    )
+                    failure_class = ""
+                    exit_code = result
+                    self._log(f"codex exec finished task={task_id} exit_code={exit_code}")
             except subprocess.TimeoutExpired as exc:
                 timeout_stdout = exc.stdout or ""
                 timeout_stderr = exc.stderr or ""
@@ -911,6 +989,7 @@ class DockerExecutor:
                     last_message_path=last_message_path,
                 )
                 output = f"{output}\nExecution timed out." if output else "Execution timed out."
+                failure_class = "timeout"
                 exit_code = 124
                 self._log(f"codex exec timed out task={task_id}")
             duration_seconds = time.monotonic() - started_at
@@ -925,6 +1004,7 @@ class DockerExecutor:
                 input_tokens=input_tokens,
                 cached_input_tokens=cached_input_tokens,
                 output_tokens=output_tokens,
+                failure_class=failure_class,
             )
 
     def _summarize_codex_json_output(
@@ -1025,6 +1105,15 @@ class DockerExecutor:
             "To copy files into the container, use ./task_put <local_path> <container_path>.\n"
             "To copy files out of the container, use ./task_get <container_path> <local_path>.\n"
             "Assume the task image may only have basic Unix tools plus python3; prefer python3 over python and grep/find/sed over rg.\n"
+            "Treat bundled task-local skills under ./skills as read-only references. Do not edit those bundled files in place.\n"
+            "You may still create derived helpers elsewhere in the workspace, and you may iterate on non-bundled candidate skills the system generated for this run.\n"
+            "If a bundled skill already contains an end-to-end script or pipeline, use it before inventing a new approach.\n"
+            "When a bundled skill ships runnable files under scripts/ or a pipeline.py, first copy that skill directory to a derived workspace path outside ./skills, make only the minimum runtime adjustments there, and run the derived copy.\n"
+            "Use ./clone_skill ./skills/<skill-dir> ./derived_<skill-dir> when you need a writable derived copy of a bundled skill.\n"
+            "Do not start from scratch while a bundled pipeline is available but untried.\n"
+            "Never write console progress logs into required output artifact paths. Keep logs on stdout or temp files, and write final CSV/JSON outputs cleanly and atomically.\n"
+            "Once the required output files are written and a minimal sanity check confirms they exist and look plausible, stop immediately.\n"
+            "Do not keep researching or polishing after the required artifacts are ready.\n"
             "Read the instruction carefully, inspect local files as needed, and complete the task.\n"
             f"{skill_note}"
             f"{output_note}"
@@ -1387,12 +1476,17 @@ class DockerExecutor:
         task_id: str,
         skill: Optional[SkillBundle],
         include_task_local_skills: bool = True,
+        activity_log_path: Optional[Path] = None,
     ) -> None:
         workspace.mkdir(parents=True, exist_ok=True)
+        activity_log = shlex.quote(str(activity_log_path or (workspace / "agent-activity.log")))
+        bundled_skill_names = [skill_dir.name for skill_dir in self._task_local_skill_dirs(task_id)]
+        bundled_roots_literal = " ".join(shlex.quote(f"skills/{name}") for name in bundled_skill_names)
         self._write_workspace_file(
             workspace / "task_shell",
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
+            f"printf '%s task_shell %s\\n' \"$(date -Is)\" \"$*\" >> {activity_log}\n"
             f"docker exec {shlex.quote(container.id)} bash -lc \"$*\"\n",
             executable=True,
         )
@@ -1400,6 +1494,14 @@ class DockerExecutor:
             workspace / "task_put",
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
+            "src=\"${1#./}\"\n"
+            f"for root in {bundled_roots_literal}; do\n"
+            "  if [[ -n \"$root\" && ( \"$src\" == \"$root\" || \"$src\" == \"$root\"/* ) ]]; then\n"
+            "    echo 'Refusing to overwrite bundled task-local skill files; create a derived helper or candidate skill instead.' >&2\n"
+            "    exit 2\n"
+            "  fi\n"
+            "done\n"
+            f"printf '%s task_put %s -> %s\\n' \"$(date -Is)\" \"$1\" \"$2\" >> {activity_log}\n"
             f"docker cp \"$1\" {shlex.quote(container.id)}:\"$2\"\n",
             executable=True,
         )
@@ -1407,6 +1509,7 @@ class DockerExecutor:
             workspace / "task_get",
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
+            f"printf '%s task_get %s -> %s\\n' \"$(date -Is)\" \"$1\" \"$2\" >> {activity_log}\n"
             f"docker cp {shlex.quote(container.id)}:\"$1\" \"$2\"\n",
             executable=True,
         )
@@ -1415,9 +1518,22 @@ class DockerExecutor:
             "Use `./task_shell` to run commands inside the task container.\n"
             "Use `./task_put` and `./task_get` to move files across the container boundary.\n",
         )
+        self._write_workspace_file(
+            workspace / "clone_skill",
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            "src=\"${1:?source skill dir required}\"\n"
+            "dst=\"${2:?destination dir required}\"\n"
+            "rm -rf \"$dst\"\n"
+            "cp -R \"$src\" \"$dst\"\n"
+            "find \"$dst\" -type d -exec chmod 755 {} +\n"
+            "find \"$dst\" -type f -exec chmod 644 {} +\n",
+            executable=True,
+        )
         if include_task_local_skills:
             for skill_dir in self._task_local_skill_dirs(task_id):
                 shutil.copytree(skill_dir, workspace / "skills" / skill_dir.name, dirs_exist_ok=True)
+                self._make_tree_read_only(workspace / "skills" / skill_dir.name)
         if skill is not None and skill.skill_id not in {path.name for path in self._task_local_skill_dirs(task_id)}:
             skill_root = workspace / "skills" / skill.skill_id
             self._write_workspace_file(skill_root / "SKILL.md", skill.to_skill_md())
@@ -1426,7 +1542,7 @@ class DockerExecutor:
 
     def _task_local_skill_dirs(self, task_id: str) -> list[Path]:
         """Return bundled task-local skill directories."""
-        skills_root = self.skillsbench_root / "tasks" / task_id / "environment" / "skills"
+        skills_root = resolve_task_dir(self.skillsbench_root, task_id) / "environment" / "skills"
         if not skills_root.exists():
             return []
         return sorted(path for path in skills_root.iterdir() if path.is_dir())
@@ -1440,7 +1556,15 @@ class DockerExecutor:
         """List skill entry points visible to the execution agent."""
         paths = []
         if include_task_local_skills:
-            paths = [f"./skills/{path.name}/SKILL.md" for path in self._task_local_skill_dirs(task_id)]
+            for path in self._task_local_skill_dirs(task_id):
+                paths.append(f"./skills/{path.name}/SKILL.md")
+                pipeline_path = path / "scripts" / "pipeline.py"
+                if pipeline_path.exists():
+                    paths.append(f"./skills/{path.name}/scripts/pipeline.py")
+                for script_path in sorted((path / "scripts").glob("*.py"))[:4]:
+                    rendered = f"./skills/{path.name}/scripts/{script_path.name}"
+                    if rendered not in paths:
+                        paths.append(rendered)
         if skill is not None:
             candidate_path = f"./skills/{skill.skill_id}/SKILL.md"
             if candidate_path not in paths:
@@ -1452,6 +1576,37 @@ class DockerExecutor:
         path.write_text(content)
         if executable:
             path.chmod(0o755)
+
+    def _make_tree_read_only(self, root: Path) -> None:
+        """Keep bundled skills immutable during execution runs."""
+        if not root.exists():
+            return
+        for path in sorted(root.rglob("*"), reverse=True):
+            if path.is_dir():
+                path.chmod(0o555)
+            elif path.is_file():
+                path.chmod(0o444)
+        root.chmod(0o555)
+
+    def _latest_workspace_activity_mtime(
+        self,
+        workspace: Path,
+        activity_log_path: Path,
+        last_message_path: Path,
+        codex_stdout_path: Path,
+        codex_stderr_path: Path,
+    ) -> float:
+        """Track whether the agent is actually doing work inside the workspace."""
+        latest = 0.0
+        for candidate in (activity_log_path, last_message_path, codex_stdout_path, codex_stderr_path):
+            if candidate.exists():
+                latest = max(latest, candidate.stat().st_mtime)
+        local_app = workspace / "local_app"
+        if local_app.exists():
+            for path in local_app.rglob("*"):
+                if path.is_file():
+                    latest = max(latest, path.stat().st_mtime)
+        return latest
 
     def _expand_skill_support_files(self, skill: SkillBundle) -> dict[str, str]:
         """Normalize skill support files and preserve a legacy scripts/ alias."""
@@ -1613,6 +1768,8 @@ class DockerExecutor:
             return ""
 
         lowered = output.lower()
+        if "execution stalled with no observable workspace activity" in lowered:
+            return "stall"
         if exit_code == 124 or "timed out" in lowered:
             return "timeout"
         if "dockerfile not found" in lowered:

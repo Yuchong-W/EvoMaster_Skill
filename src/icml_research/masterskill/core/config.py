@@ -73,6 +73,10 @@ def load_config(
             "stop_after_base_attempt",
             Config.stop_after_base_attempt,
         ),
+        persist_task_skills=kwargs.get(
+            "persist_task_skills",
+            Config.persist_task_skills,
+        ),
         openai_api_key=api_key,
         openai_base_url=base_url,
         model_searcher=_get_model("searcher", model_overrides.get("searcher", "")),

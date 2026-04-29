@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from ..core.paths import resolve_task_dir, resolve_tasks_root
 from ..core.types import (
     Config, TaskContext, SkillBundle,
     TaskStatus, TaskAttempt, ResearchOutput,
@@ -109,7 +110,7 @@ class BenchmarkRunner:
 
     def list_all_tasks(self) -> list[str]:
         """List every task directory under the active task root."""
-        tasks_dir = Path(self.config.skillsbench_root) / "tasks"
+        tasks_dir = resolve_tasks_root(self.config.skillsbench_root)
         return sorted(d.name for d in tasks_dir.iterdir() if d.is_dir())
 
     def run_task(self, task_id: str) -> TaskStatus:
@@ -153,17 +154,18 @@ class BenchmarkRunner:
                 notes=attempt_result.get("error", ""),
             )
             if attempt_result.get("success"):
+                status = TaskStatus.SOLVED
+                run_record.final_score = 1.0
+                run_record.final_model = attempt_result.get("model", "")
                 if not self.config.stop_after_base_attempt:
                     self._on_base_model_solved(task_id, context, attempt_result)
+                    self._checkpoint_run_record(run_record)
                     self._maybe_optimize_after_success(
                         context=context,
                         baseline_result=attempt_result,
                         baseline_skill=None,
                         run_record=run_record,
                     )
-                status = TaskStatus.SOLVED
-                run_record.final_score = 1.0
-                run_record.final_model = attempt_result.get("model", "")
                 return status
 
             if self.config.stop_after_base_attempt:
@@ -216,16 +218,17 @@ class BenchmarkRunner:
                     if real_result:
                         self._append_real_test_event(run_record, skill.skill_id, real_result)
                     if result.get("passed"):
+                        status = TaskStatus.SOLVED
+                        run_record.final_score = 1.0
+                        run_record.final_model = real_result.get("model", "") if real_result else ""
                         self._on_task_solved(task_id, context, skill)
+                        self._checkpoint_run_record(run_record)
                         self._maybe_optimize_after_success(
                             context=context,
                             baseline_result=real_result or {},
                             baseline_skill=skill,
                             run_record=run_record,
                         )
-                        status = TaskStatus.SOLVED
-                        run_record.final_score = 1.0
-                        run_record.final_model = real_result.get("model", "") if real_result else ""
                         return status
 
             research_output = self._research_new_skill(context)
@@ -259,16 +262,17 @@ class BenchmarkRunner:
                     self._append_real_test_event(run_record, current_skill.skill_id, real_result)
 
                     if real_result.get("passed"):
+                        status = TaskStatus.SOLVED
+                        run_record.final_score = real_result.get("score", 0.0)
+                        run_record.final_model = real_result.get("model", "")
                         self._on_task_solved(task_id, context, current_skill)
+                        self._checkpoint_run_record(run_record)
                         self._maybe_optimize_after_success(
                             context=context,
                             baseline_result=real_result,
                             baseline_skill=current_skill,
                             run_record=run_record,
                         )
-                        status = TaskStatus.SOLVED
-                        run_record.final_score = real_result.get("score", 0.0)
-                        run_record.final_model = real_result.get("model", "")
                         return status
 
                     real_test_failures += 1
@@ -442,13 +446,13 @@ class BenchmarkRunner:
 
         difficulty = str(task_toml.get("metadata", {}).get("difficulty", "")).lower()
         if difficulty == "hard":
-            timeout_seconds = max(timeout_seconds, 420)
+            timeout_seconds = max(timeout_seconds, int(self.config.real_test_timeout_seconds))
 
         return min(timeout_seconds, int(self.config.real_test_timeout_seconds))
 
     def _load_task_context(self, task_id: str) -> Optional[TaskContext]:
         """Load task context from SkillsBench and analyze it."""
-        task_dir = Path(self.config.skillsbench_root) / "tasks" / task_id
+        task_dir = resolve_task_dir(self.config.skillsbench_root, task_id)
         if not task_dir.exists():
             return None
 
@@ -767,7 +771,7 @@ class BenchmarkRunner:
     def _summarize_bundled_task_skills(self, task_id: str) -> str:
         """Summarize skills already bundled with a task."""
         task_toml = {}
-        toml_path = Path(self.config.skillsbench_root) / "tasks" / task_id / "task.toml"
+        toml_path = resolve_task_dir(self.config.skillsbench_root, task_id) / "task.toml"
         if toml_path.exists():
             try:
                 import tomllib
@@ -1055,8 +1059,9 @@ class BenchmarkRunner:
             method=effective_method,
         )
 
-        # Save skill to repo
-        self.skill_repo.save_skill(task_id, skill)
+        # Save skill to the task tree only when task-local persistence is enabled.
+        if self.config.persist_task_skills:
+            self.skill_repo.save_skill(task_id, skill)
         self.shallow_memory.add_skill(skill)
 
         # Update shallow memory
@@ -1117,6 +1122,11 @@ class BenchmarkRunner:
                 success_factors=[why_worked],
             ),
         )
+
+    def _checkpoint_run_record(self, run_record: BenchmarkRunRecord) -> None:
+        """Persist the latest known task outcome before long post-pass work."""
+        run_record.status = TaskStatus.SOLVED
+        self.result_store.save_latest(run_record)
 
     def _maybe_optimize_after_success(
         self,
@@ -1399,7 +1409,8 @@ class BenchmarkRunner:
         update_task_memory: bool,
     ) -> None:
         """Persist an optimized skill that improved over an already passing baseline."""
-        self.skill_repo.save_skill(context.task_id, skill)
+        if self.config.persist_task_skills:
+            self.skill_repo.save_skill(context.task_id, skill)
         self.shallow_memory.add_skill(skill)
 
         effective_method = EffectiveMethod(
